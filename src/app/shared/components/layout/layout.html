@@ -1,0 +1,12 @@
+<div class="shell" [class.shell--menu-open]="menuOpen()">
+  <app-sidebar class="shell__sidebar" (navigate)="closeMenu()" />
+
+  <div class="shell__backdrop" (click)="closeMenu()" aria-hidden="true"></div>
+
+  <div class="shell__body">
+    <app-navbar (menuToggle)="toggleMenu()" />
+    <main class="shell__content">
+      <router-outlet />
+    </main>
+  </div>
+</div>

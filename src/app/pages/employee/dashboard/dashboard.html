@@ -1,0 +1,151 @@
+<div class="page">
+
+  <div class="page__head">
+    <div>
+      <h1 class="page__title">Hola, Bienvenido</h1>
+      <span class="page__subtitle">Tu resumen de hoy</span>
+    </div>
+    <button type="button" class="btn btn-ghost" (click)="reload()">Actualizar</button>
+  </div>
+
+  <!-- Tarjetas -->
+  @switch (statsState()) {
+    @case ('loading') {
+      <div class="card"><app-loading message="Cargando indicadores…" /></div>
+    }
+    @case ('error') {
+      <div class="alert alert-danger">No fue posible cargar los indicadores.</div>
+    }
+    @default {
+      <div class="stats">
+        <div class="card stat stat--accent">
+          <span class="stat__label">Vendido hoy</span>
+          <span class="stat__value">{{ todayTotal() | currency }}</span>
+        </div>
+        <div class="card stat">
+          <span class="stat__label">Ventas de hoy</span>
+          <span class="stat__value">{{ todayCount() }}</span>
+          <span class="stat__hint">
+            {{ todayCount() === 0 ? 'Sin ventas aún' : (todayCount() === 1 ? 'venta' : 'ventas') }}
+          </span>
+        </div>
+        <div class="card stat stat--warn">
+          <span class="stat__label">Pendiente por cobrar</span>
+          <span class="stat__value">
+            {{ outstanding() === 0 ? 'Sin pendientes' : (outstanding() | currency) }}
+          </span>
+        </div>
+        <div class="card stat">
+          <span class="stat__label">Stock bajo</span>
+          <span class="stat__value">
+            {{ lowState() !== 'ready' ? '—' : (lowStock().length === 0 ? 'Sin alertas' : lowStock().length) }}
+          </span>
+        </div>
+      </div>
+    }
+  }
+
+  <!-- Accesos rápidos -->
+  <div class="quick">
+    <div class="quick__card" aria-disabled="true">
+      <span class="quick__title">Registrar venta</span>
+      <span class="quick__hint">Disponible pronto</span>
+    </div>
+    <div class="quick__card" aria-disabled="true">
+      <span class="quick__title">Consultar inventario</span>
+      <span class="quick__hint">Disponible pronto</span>
+    </div>
+  </div>
+
+  <div class="dash-grid">
+
+    <!-- Ventas recientes (propias) -->
+    <section class="card panel">
+      <div class="panel__head">
+        <span class="panel__title">Mis ventas recientes</span>
+      </div>
+      <div class="panel__body">
+        @switch (recentState()) {
+          @case ('loading') { <app-loading message="Cargando ventas…" /> }
+          @case ('error') {
+            <div class="panel__body--pad">
+              <div class="alert alert-danger">No fue posible cargar tus ventas.</div>
+            </div>
+          }
+          @default {
+            @if (recent().length === 0) {
+              <app-empty title="Todavía no hay ventas registradas" />
+            } @else {
+              <div class="table-wrap">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Factura</th>
+                      <th>Fecha</th>
+                      <th class="num">Total</th>
+                      <th>Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (sale of recent(); track sale.id) {
+                      <tr>
+                        <td>{{ sale.invoiceNumber ? '#' + sale.invoiceNumber : '—' }}</td>
+                        <td>{{ sale.createdAt | date:'dd/MM/yy HH:mm' }}</td>
+                        <td class="num">{{ sale.total | currency }}</td>
+                        <td>
+                          <span class="badge" [class]="statusClass(sale.status)">
+                            {{ statusLabel(sale.status) }}
+                          </span>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          }
+        }
+      </div>
+    </section>
+
+    <!-- Stock bajo -->
+    <section class="card panel">
+      <div class="panel__head">
+        <span class="panel__title">Stock bajo</span>
+        @if (lowState() === 'ready' && lowStock().length > lowStockTop().length) {
+          <span class="badge badge--neutral">{{ lowStock().length }} en total</span>
+        }
+      </div>
+      <div class="panel__body">
+        @switch (lowState()) {
+          @case ('loading') { <app-loading message="Revisando inventario…" /> }
+          @case ('error') {
+            <div class="panel__body--pad">
+              <div class="alert alert-danger">No fue posible cargar el inventario.</div>
+            </div>
+          }
+          @default {
+            @if (lowStock().length === 0) {
+              <app-empty icon="✓" title="Sin alertas de inventario" />
+            } @else {
+              <ul class="stocklist">
+                @for (item of lowStockTop(); track item.productId) {
+                  <li class="stocklist__row">
+                    <span class="stocklist__name">{{ item.productName }}</span>
+                    <span class="stocklist__meta">
+                      {{ item.quantity }} / mín. {{ item.minimumStock }}
+                    </span>
+                    <span class="badge" [class]="stockClass(item.status)">
+                      {{ stockLabel(item.status) }}
+                    </span>
+                  </li>
+                }
+              </ul>
+            }
+          }
+        }
+      </div>
+    </section>
+  </div>
+
+</div>

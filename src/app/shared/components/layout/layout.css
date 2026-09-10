@@ -1,0 +1,55 @@
+:host {
+  display: block;
+}
+
+.shell {
+  display: flex;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.shell__sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+}
+
+.shell__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.shell__content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.shell__backdrop {
+  display: none;
+}
+
+/* ---- Tablet / móvil: sidebar offcanvas ---- */
+@media (max-width: 1023px) {
+  .shell__sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+    box-shadow: var(--shadow-3);
+  }
+
+  .shell--menu-open .shell__sidebar {
+    transform: translateX(0);
+  }
+
+  .shell--menu-open .shell__backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: rgba(0, 0, 0, 0.55);
+  }
+}

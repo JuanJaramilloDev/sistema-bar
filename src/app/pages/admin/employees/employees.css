@@ -1,0 +1,12 @@
+:host {
+  display: block;
+}
+
+.notice-alert {
+  cursor: pointer;
+}
+
+.cell-main__name .badge {
+  margin-left: 8px;
+  vertical-align: middle;
+}

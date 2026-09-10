@@ -1,0 +1,34 @@
+<aside class="sidebar">
+  <div class="sidebar__brand">
+    <span class="sidebar__mark">PR</span>
+    <span class="sidebar__name">Portón Rojo</span>
+  </div>
+
+  <nav class="sidebar__nav">
+    @for (item of items(); track item.path) {
+      @if (item.ready) {
+        <a
+          class="sidebar__link"
+          [routerLink]="item.path"
+          routerLinkActive="is-active"
+          (click)="navigate.emit()"
+        >
+          <svg class="sidebar__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path [attr.d]="iconPath(item.icon)" />
+          </svg>
+          <span>{{ item.label }}</span>
+        </a>
+      } @else {
+        <span class="sidebar__link sidebar__link--disabled" aria-disabled="true">
+          <svg class="sidebar__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path [attr.d]="iconPath(item.icon)" />
+          </svg>
+          <span>{{ item.label }}</span>
+          <span class="sidebar__soon">Pronto</span>
+        </span>
+      }
+    }
+  </nav>
+</aside>

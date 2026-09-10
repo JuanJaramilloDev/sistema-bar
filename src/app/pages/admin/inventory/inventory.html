@@ -1,0 +1,314 @@
+<div class="page">
+
+  <div class="page__head">
+    <div>
+      <h1 class="page__title">Inventario</h1>
+      <div class="count-summary">
+        <span><strong>{{ counts().total }}</strong> productos</span>
+        <span><strong>{{ counts().low }}</strong> con stock bajo</span>
+        <span><strong>{{ counts().out }}</strong> sin stock</span>
+      </div>
+    </div>
+    @if (isAdmin()) {
+      <div class="tabs">
+        <button
+          type="button"
+          class="tabs__btn"
+          [class.is-active]="tab() === 'stock'"
+          (click)="selectTab('stock')"
+        >Existencias</button>
+        <button
+          type="button"
+          class="tabs__btn"
+          [class.is-active]="tab() === 'movements'"
+          (click)="selectTab('movements')"
+        >Movimientos</button>
+      </div>
+    }
+  </div>
+
+  @if (notice(); as n) {
+    <div
+      class="alert notice-alert"
+      [class.alert-success]="n.kind === 'ok'"
+      [class.alert-danger]="n.kind === 'err'"
+      (click)="dismissNotice()"
+    >{{ n.text }}</div>
+  }
+
+  @if (tab() === 'stock') {
+
+    <div class="toolbar">
+      <input
+        type="search"
+        class="input toolbar__search"
+        placeholder="Buscar producto…"
+        [value]="search()"
+        (input)="search.set($any($event.target).value)"
+      />
+      <select
+        class="select"
+        [value]="categoryFilter()"
+        (change)="categoryFilter.set($any($event.target).value)"
+      >
+        <option value="all">Todas las categorías</option>
+        @for (category of categoryOptions(); track category.id) {
+          <option [value]="category.id">{{ category.name }}</option>
+        }
+      </select>
+      <select
+        class="select"
+        [value]="statusFilter()"
+        (change)="statusFilter.set($any($event.target).value)"
+      >
+        <option value="all">Todos los estados</option>
+        <option value="ok">Stock normal</option>
+        <option value="low">Stock bajo</option>
+        <option value="out">Sin stock</option>
+      </select>
+    </div>
+
+    <section class="card panel">
+      <div class="panel__body">
+        @switch (state()) {
+          @case ('loading') {
+            <app-loading message="Cargando inventario…" />
+          }
+          @case ('error') {
+            <div class="panel__body--pad">
+              <div class="alert alert-danger">
+                No fue posible cargar el inventario.
+                <button type="button" class="link-btn" (click)="load()">Reintentar</button>
+              </div>
+            </div>
+          }
+          @default {
+            @if (rows().length === 0) {
+              <app-empty
+                title="Aún no hay productos en inventario"
+                hint="Crea productos en el módulo de Productos."
+              />
+            } @else if (filtered().length === 0) {
+              <app-empty title="Ningún producto coincide con los filtros" />
+            } @else {
+              <div class="table-wrap">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Producto</th>
+                      <th>Categoría</th>
+                      <th class="num">Stock</th>
+                      <th class="num">Mínimo</th>
+                      <th class="col-tight">Estado</th>
+                      <th class="col-tight">Actualizado</th>
+                      @if (isAdmin()) { <th class="col-tight">Acciones</th> }
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (row of filtered(); track row.productId) {
+                      <tr [class.is-inactive]="!row.productActive">
+                        <td>
+                          <div class="cell-main">
+                            @if (row.productImage) {
+                              <img class="thumb" [src]="row.productImage" [alt]="row.productName" />
+                            } @else {
+                              <span class="thumb thumb--empty">—</span>
+                            }
+                            <span class="cell-main__name">{{ row.productName }}</span>
+                          </div>
+                        </td>
+                        <td>{{ row.categoryName ?? '—' }}</td>
+                        <td class="num">{{ row.quantity }}</td>
+                        <td class="num">{{ row.minimumStock }}</td>
+                        <td class="col-tight">
+                          <span class="badge" [class]="statusClass(row.status)">
+                            {{ statusLabel(row.status) }}
+                          </span>
+                        </td>
+                        <td class="col-tight">{{ row.updatedAt ? (row.updatedAt | date:'dd/MM/yy HH:mm') : '—' }}</td>
+                        @if (isAdmin()) {
+                          <td class="col-tight">
+                            <div class="actions">
+                              <button type="button" class="pill-btn" (click)="openOp('entry', row)">
+                                <app-icon name="plus" />
+                              </button>
+                              <button type="button" class="pill-btn" (click)="openOp('adjustment', row)">
+                                <app-icon name="sliders" /> Ajuste
+                              </button>
+                              <button type="button" class="pill-btn" (click)="openOp('return', row)">
+                                <app-icon name="undo" /> Devolución
+                              </button>
+                            </div>
+                          </td>
+                        }
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          }
+        }
+      </div>
+    </section>
+
+  } @else {
+
+    <section class="card panel">
+      <div class="panel__head">
+        <span class="panel__title">Historial de movimientos</span>
+        <button type="button" class="link-btn" (click)="loadMovements()">Actualizar</button>
+      </div>
+      <div class="panel__body">
+        @switch (movementsState()) {
+          @case ('loading') {
+            <app-loading message="Cargando movimientos…" />
+          }
+          @case ('error') {
+            <div class="panel__body--pad">
+              <div class="alert alert-danger">
+                No fue posible cargar los movimientos.
+                <button type="button" class="link-btn" (click)="loadMovements()">Reintentar</button>
+              </div>
+            </div>
+          }
+          @default {
+            @if (movements().length === 0) {
+              <app-empty title="Todavía no hay movimientos de inventario" />
+            } @else {
+              <div class="table-wrap">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th class="col-tight">Fecha</th>
+                      <th>Producto</th>
+                      <th class="col-tight">Tipo</th>
+                      <th class="num">Cantidad</th>
+                      <th class="num">Anterior</th>
+                      <th class="num">Nuevo</th>
+                      <th>Motivo</th>
+                      <th class="col-tight">Usuario</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (movement of movements(); track movement.id) {
+                      <tr>
+                        <td class="col-tight">{{ movement.createdAt | date:'dd/MM/yy HH:mm' }}</td>
+                        <td>{{ movement.productName }}</td>
+                        <td class="col-tight">
+                          <span class="badge" [class]="movementClass(movement.type)">
+                            {{ movementLabel(movement.type) }}
+                          </span>
+                        </td>
+                        <td class="num">
+                          <span
+                            class="qty-signed"
+                            [class.qty-signed--up]="movement.newQuantity >= movement.previousQuantity"
+                            [class.qty-signed--down]="movement.newQuantity < movement.previousQuantity"
+                          >
+                            {{ movement.newQuantity >= movement.previousQuantity ? '+' : '' }}{{ movement.newQuantity - movement.previousQuantity }}
+                          </span>
+                        </td>
+                        <td class="num">{{ movement.previousQuantity }}</td>
+                        <td class="num">{{ movement.newQuantity }}</td>
+                        <td class="cell-main__sub">{{ movement.reason || '—' }}</td>
+                        <td class="col-tight">{{ movement.userName || '—' }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          }
+        }
+      </div>
+    </section>
+
+  }
+</div>
+
+<!-- Modal de operación (solo admin llega aquí) -->
+<app-modal
+  [open]="opOpen()"
+  [locked]="opSaving()"
+  [title]="opTitle()"
+  (closed)="closeOp()"
+>
+  @if (opRow(); as row) {
+    <form class="form" [formGroup]="opForm" (ngSubmit)="submitOp()" novalidate>
+      <div class="readonly-box">
+        <span>Producto</span>
+        <span>{{ row.productName }}</span>
+      </div>
+      <div class="readonly-box">
+        <span>Stock actual</span>
+        <span>{{ row.quantity }}</span>
+      </div>
+
+      <div class="field">
+        <label for="op-amount">
+          {{ opType() === 'adjustment' ? 'Conteo físico (unidades reales)' : 'Cantidad' }}
+        </label>
+        <input
+          id="op-amount"
+          type="number"
+          inputmode="numeric"
+          min="0"
+          step="1"
+          class="input"
+          formControlName="amount"
+          [class.is-invalid]="opForm.controls.amount.touched && opForm.controls.amount.invalid"
+        />
+        @if (opForm.controls.amount.touched && opForm.controls.amount.invalid) {
+          <span class="field-error">
+            {{ opType() === 'adjustment' ? 'Número entero, 0 o mayor.' : 'Número entero mayor que 0.' }}
+          </span>
+        }
+      </div>
+
+      <div class="field">
+        <label for="op-reason">Motivo{{ reasonRequired() ? '' : ' (opcional)' }}</label>
+        <textarea
+          id="op-reason"
+          class="input textarea"
+          formControlName="reason"
+          [placeholder]="opType() === 'entry' ? 'Ej. Compra al proveedor' : (opType() === 'adjustment' ? 'Ej. Diferencia en el conteo físico' : 'Ej. Devolución de un cliente')"
+          [class.is-invalid]="opForm.controls.reason.touched && opForm.controls.reason.invalid"
+        ></textarea>
+        @if (opForm.controls.reason.touched && opForm.controls.reason.invalid) {
+          <span class="field-error">El motivo es obligatorio para esta operación.</span>
+        }
+      </div>
+
+      @if (opPreview(); as preview) {
+        <div class="op-preview">
+          <span>{{ preview.current }}</span>
+          <span class="op-preview__arrow">→</span>
+          <span class="op-preview__to">{{ preview.next }}</span>
+          <span
+            class="op-preview__delta"
+            [class.op-preview__delta--up]="preview.delta > 0"
+            [class.op-preview__delta--down]="preview.delta < 0"
+            [class.op-preview__delta--zero]="preview.delta === 0"
+          >{{ preview.delta > 0 ? '+' : '' }}{{ preview.delta }}</span>
+        </div>
+      }
+
+      @if (opError()) {
+        <div class="alert alert-danger">{{ opError() }}</div>
+      }
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" (click)="closeOp()" [disabled]="opSaving()">
+          Cancelar
+        </button>
+        <button type="submit" class="btn btn-primary" [disabled]="opSaving()">
+          @if (opSaving()) { <span class="spinner"></span> Registrando… }
+          @else {
+            {{ opType() === 'entry' ? 'Registrar entrada' : (opType() === 'adjustment' ? 'Confirmar ajuste' : 'Registrar devolución') }}
+          }
+        </button>
+      </div>
+    </form>
+  }
+</app-modal>

@@ -1,0 +1,200 @@
+<div class="page">
+
+  <div class="page__head">
+    <div>
+      <h1 class="page__title">Empleados</h1>
+      <span class="page__subtitle">Usuarios que pueden entrar al sistema</span>
+    </div>
+    <button type="button" class="btn btn-primary" (click)="openCreate()">
+      <app-icon name="plus" /> Nuevo empleado
+    </button>
+  </div>
+
+  @if (notice(); as n) {
+    <div
+      class="alert notice-alert"
+      [class.alert-success]="n.kind === 'ok'"
+      [class.alert-danger]="n.kind === 'err'"
+      (click)="dismissNotice()"
+    >{{ n.text }}</div>
+  }
+
+  <div class="toolbar">
+    <input
+      type="search"
+      class="input toolbar__search"
+      placeholder="Buscar por nombre o correo…"
+      [value]="search()"
+      (input)="search.set($any($event.target).value)"
+    />
+  </div>
+
+  <section class="card panel">
+    <div class="panel__body">
+      @switch (state()) {
+        @case ('loading') {
+          <app-loading message="Cargando empleados…" />
+        }
+        @case ('error') {
+          <div class="panel__body--pad">
+            <div class="alert alert-danger">
+              No fue posible cargar los empleados.
+              <button type="button" class="link-btn" (click)="load()">Reintentar</button>
+            </div>
+          </div>
+        }
+        @default {
+          @if (filtered().length === 0) {
+            <app-empty title="Ningún empleado coincide con la búsqueda" />
+          } @else {
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Correo</th>
+                    <th class="col-tight">Rol</th>
+                    <th class="col-tight">Estado</th>
+                    <th class="col-tight">Creado</th>
+                    <th class="col-tight">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (person of filtered(); track person.id) {
+                    <tr [class.is-inactive]="!person.active">
+                      <td class="cell-main__name">
+                        {{ person.name || '—' }}
+                        @if (person.id === currentUserId()) {
+                          <span class="badge badge--neutral">Tú</span>
+                        }
+                      </td>
+                      <td>{{ person.email || '—' }}</td>
+                      <td class="col-tight">
+                        <span
+                          class="badge"
+                          [class.badge--danger]="person.role === 'admin'"
+                          [class.badge--neutral]="person.role !== 'admin'"
+                        >
+                          {{ roleLabel(person.role) }}
+                        </span>
+                      </td>
+                      <td class="col-tight">
+                        <span
+                          class="badge"
+                          [class.badge--success]="person.active"
+                          [class.badge--neutral]="!person.active"
+                        >
+                          {{ person.active ? 'Activo' : 'Inactivo' }}
+                        </span>
+                      </td>
+                      <td class="col-tight">{{ person.created_at | date:'dd/MM/yy' }}</td>
+                      <td class="col-tight">
+                        <div class="actions">
+                          <button
+                            type="button"
+                            class="icon-btn"
+                            title="Editar nombre"
+                            (click)="openEditName(person)"
+                          >
+                            <app-icon name="edit" />
+                          </button>
+                          @if (person.id !== currentUserId()) {
+                            <button
+                              type="button"
+                              class="icon-btn"
+                              [title]="person.active ? 'Desactivar' : 'Activar'"
+                              [disabled]="busyId() === person.id"
+                              (click)="toggleActive(person)"
+                            >
+                              <app-icon name="power" />
+                            </button>
+                          }
+                        </div>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        }
+      }
+    </div>
+  </section>
+</div>
+
+<!-- Modal: nuevo empleado / editar nombre -->
+<app-modal
+  [open]="formOpen()"
+  [locked]="saving()"
+  [title]="editing() ? 'Editar nombre' : 'Nuevo empleado'"
+  (closed)="closeForm()"
+>
+  <form class="form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <div class="field">
+      <label for="e-name">Nombre</label>
+      <input
+        id="e-name"
+        type="text"
+        class="input"
+        formControlName="name"
+        placeholder="Nombre del empleado"
+        [class.is-invalid]="form.controls.name.touched && form.controls.name.invalid"
+      />
+      @if (form.controls.name.touched && form.controls.name.invalid) {
+        <span class="field-error">El nombre es obligatorio.</span>
+      }
+    </div>
+
+    @if (!editing()) {
+      <div class="field">
+        <label for="e-email">Correo electrónico</label>
+        <input
+          id="e-email"
+          type="email"
+          class="input"
+          formControlName="email"
+          autocomplete="off"
+          placeholder="correo@ejemplo.com"
+          [class.is-invalid]="form.controls.email.touched && form.controls.email.invalid"
+        />
+        @if (form.controls.email.touched && form.controls.email.invalid) {
+          <span class="field-error">Escribe un correo válido.</span>
+        }
+      </div>
+
+      <div class="field">
+        <label for="e-pass">Contraseña temporal</label>
+        <input
+          id="e-pass"
+          type="text"
+          class="input"
+          formControlName="password"
+          autocomplete="off"
+          placeholder="Mínimo 6 caracteres"
+          [class.is-invalid]="form.controls.password.touched && form.controls.password.invalid"
+        />
+        @if (form.controls.password.touched && form.controls.password.invalid) {
+          <span class="field-error">Mínimo 6 caracteres.</span>
+        }
+        <span class="hint">
+          El empleado inicia sesión con este correo y contraseña. Compártela de forma segura.
+        </span>
+      </div>
+    }
+
+    @if (formError()) {
+      <div class="alert alert-danger">{{ formError() }}</div>
+    }
+
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" (click)="closeForm()" [disabled]="saving()">
+        Cancelar
+      </button>
+      <button type="submit" class="btn btn-primary" [disabled]="saving()">
+        @if (saving()) { <span class="spinner"></span> Guardando… }
+        @else { {{ editing() ? 'Guardar' : 'Crear empleado' }} }
+      </button>
+    </div>
+  </form>
+</app-modal>

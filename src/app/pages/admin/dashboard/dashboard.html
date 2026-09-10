@@ -1,0 +1,165 @@
+<div class="page">
+
+  <div class="page__head">
+    <div>
+      <h1 class="page__title">Hola, Bienvenido</h1>
+      <span class="page__subtitle">Resumen general del bar</span>
+    </div>
+    <button type="button" class="btn btn-ghost" (click)="reload()">Actualizar</button>
+  </div>
+
+  <!-- Tarjetas principales -->
+  @switch (statsState()) {
+    @case ('loading') {
+      <div class="card"><app-loading message="Cargando indicadores…" /></div>
+    }
+    @case ('error') {
+      <div class="alert alert-danger">No fue posible cargar los indicadores.</div>
+    }
+    @default {
+      <div class="stats">
+        <div class="card stat stat--accent">
+          <span class="stat__label">Ventas de hoy</span>
+          <span class="stat__value">{{ todayTotal() | currency }}</span>
+        </div>
+        <div class="card stat">
+          <span class="stat__label">Ventas del mes</span>
+          <span class="stat__value">{{ monthTotal() | currency }}</span>
+        </div>
+        <div class="card stat">
+          <span class="stat__label">N.º de ventas hoy</span>
+          <span class="stat__value">{{ todayCount() }}</span>
+          <span class="stat__hint">{{ todayCount() === 1 ? 'venta registrada' : 'ventas registradas' }}</span>
+        </div>
+        <div class="card stat stat--warn">
+          <span class="stat__label">Pendiente por cobrar</span>
+          <span class="stat__value">{{ outstanding() | currency }}</span>
+          <span class="stat__hint">Últimos meses</span>
+        </div>
+        <div class="card stat">
+          <span class="stat__label">Productos con stock bajo</span>
+          <span class="stat__value">
+            {{ lowState() === 'ready' ? lowStock().length : '—' }}
+          </span>
+          <span class="stat__hint">bajo o agotado</span>
+        </div>
+      </div>
+    }
+  }
+
+  <div class="dash-grid">
+
+    <!-- Ventas recientes -->
+    <section class="card panel">
+      <div class="panel__head">
+        <span class="panel__title">Ventas recientes</span>
+      </div>
+      <div class="panel__body">
+        @switch (recentState()) {
+          @case ('loading') { <app-loading message="Cargando ventas…" /> }
+          @case ('error') {
+            <div class="panel__body--pad">
+              <div class="alert alert-danger">No fue posible cargar las ventas.</div>
+            </div>
+          }
+          @default {
+            @if (recent().length === 0) {
+              <app-empty title="Todavía no hay ventas registradas" />
+            } @else {
+              <div class="table-wrap">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Factura</th>
+                      <th>Empleado</th>
+                      <th class="num">Total</th>
+                      <th>Estado</th>
+                      <th>Fecha</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (sale of recent(); track sale.id) {
+                      <tr>
+                        <td>{{ sale.invoiceNumber ? '#' + sale.invoiceNumber : '—' }}</td>
+                        <td>{{ sale.employeeName ?? '—' }}</td>
+                        <td class="num">{{ sale.total | currency }}</td>
+                        <td>
+                          <span class="badge" [class]="statusClass(sale.status)">
+                            {{ statusLabel(sale.status) }}
+                          </span>
+                        </td>
+                        <td>{{ sale.createdAt | date:'dd/MM/yy HH:mm' }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          }
+        }
+      </div>
+    </section>
+
+    <!-- Productos con stock bajo -->
+    <section class="card panel">
+      <div class="panel__head">
+        <span class="panel__title">Stock bajo</span>
+        @if (lowState() === 'ready' && lowStock().length > lowStockTop().length) {
+          <span class="badge badge--neutral">{{ lowStock().length }} en total</span>
+        }
+      </div>
+      <div class="panel__body">
+        @switch (lowState()) {
+          @case ('loading') { <app-loading message="Revisando inventario…" /> }
+          @case ('error') {
+            <div class="panel__body--pad">
+              <div class="alert alert-danger">No fue posible cargar el inventario.</div>
+            </div>
+          }
+          @default {
+            @if (lowStock().length === 0) {
+              <app-empty icon="✓" title="Todo el inventario está en orden" />
+            } @else {
+              <ul class="stocklist">
+                @for (item of lowStockTop(); track item.productId) {
+                  <li class="stocklist__row">
+                    <span class="stocklist__name">{{ item.productName }}</span>
+                    <span class="stocklist__meta">
+                      {{ item.quantity }} / mín. {{ item.minimumStock }}
+                    </span>
+                    <span class="badge" [class]="stockClass(item.status)">
+                      {{ stockLabel(item.status) }}
+                    </span>
+                  </li>
+                }
+              </ul>
+            }
+          }
+        }
+      </div>
+    </section>
+  </div>
+
+  <!-- Resumen visual (estructura preparada, sin gráficas todavía) -->
+  <section class="card panel">
+    <div class="panel__head">
+      <span class="panel__title">Resumen visual</span>
+      <span class="badge badge--neutral">Próximamente</span>
+    </div>
+    <div class="panel__body--pad viz">
+      <div class="viz__card">
+        <span class="viz__title">Ventas por día</span>
+        <span class="viz__hint">Se activará al acumular más movimiento.</span>
+      </div>
+      <div class="viz__card">
+        <span class="viz__title">Métodos de pago</span>
+        <span class="viz__hint">Se activará al acumular más movimiento.</span>
+      </div>
+      <div class="viz__card">
+        <span class="viz__title">Productos más vendidos</span>
+        <span class="viz__hint">Se activará al acumular más movimiento.</span>
+      </div>
+    </div>
+  </section>
+
+</div>

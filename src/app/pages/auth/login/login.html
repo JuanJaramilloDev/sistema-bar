@@ -1,0 +1,87 @@
+<div class="login">
+  <div class="login__panel card">
+
+    <div class="login__brand">
+      <span class="login__mark">PR</span>
+      <div>
+        <h1 class="login__title">Portón Rojo</h1>
+        <p class="login__subtitle">Sistema de gestión</p>
+      </div>
+    </div>
+
+    <form class="login__form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+
+      <div class="field">
+        <label for="email">Correo electrónico</label>
+        <input
+          id="email"
+          type="email"
+          class="input"
+          formControlName="email"
+          autocomplete="username"
+          inputmode="email"
+          placeholder="correo@bar.com"
+          [class.is-invalid]="form.controls.email.touched && form.controls.email.invalid"
+        />
+        @if (form.controls.email.touched && form.controls.email.invalid) {
+          <span class="field-error">
+            @if (form.controls.email.hasError('required')) {
+              El correo es obligatorio.
+            } @else {
+              Escribe un correo válido.
+            }
+          </span>
+        }
+      </div>
+
+      <div class="field">
+        <label for="password">Contraseña</label>
+        <div class="login__password">
+          <input
+            id="password"
+            [type]="showPassword() ? 'text' : 'password'"
+            class="input"
+            formControlName="password"
+            autocomplete="current-password"
+            placeholder="••••••••"
+            [class.is-invalid]="form.controls.password.touched && form.controls.password.invalid"
+          />
+          <button
+            type="button"
+            class="login__toggle"
+            (click)="togglePassword()"
+            [attr.aria-label]="showPassword() ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+          >
+            {{ showPassword() ? 'Ocultar' : 'Ver' }}
+          </button>
+        </div>
+        @if (form.controls.password.touched && form.controls.password.invalid) {
+          <span class="field-error">
+            @if (form.controls.password.hasError('required')) {
+              La contraseña es obligatoria.
+            } @else {
+              Mínimo 6 caracteres.
+            }
+          </span>
+        }
+      </div>
+
+      @if (serverError()) {
+        <div class="alert alert-danger" role="alert">{{ serverError() }}</div>
+      }
+
+      <button
+        type="submit"
+        class="btn btn-primary login__submit"
+        [disabled]="loading()"
+      >
+        @if (loading()) {
+          <span class="spinner"></span> Ingresando…
+        } @else {
+          Iniciar sesión
+        }
+      </button>
+
+    </form>
+  </div>
+</div>

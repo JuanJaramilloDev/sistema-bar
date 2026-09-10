@@ -1,0 +1,12 @@
+:host {
+  display: block;
+}
+
+.notice-alert {
+  cursor: pointer;
+}
+
+.owes {
+  color: var(--warning);
+  font-weight: 600;
+}

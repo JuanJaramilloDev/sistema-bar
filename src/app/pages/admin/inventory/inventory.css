@@ -1,0 +1,11 @@
+:host {
+  display: block;
+}
+
+.notice-alert {
+  cursor: pointer;
+}
+
+.page__head .count-summary {
+  margin-top: 6px;
+}

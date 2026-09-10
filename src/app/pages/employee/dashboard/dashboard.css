@@ -1,0 +1,59 @@
+:host {
+  display: block;
+}
+
+/* Accesos rápidos */
+.quick {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+.quick__card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  cursor: not-allowed;
+}
+.quick__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.quick__hint {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* Lista de stock bajo */
+.stocklist {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+}
+.stocklist__row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.stocklist__row:last-child {
+  border-bottom: none;
+}
+.stocklist__name {
+  font-size: 14px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stocklist__meta {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}

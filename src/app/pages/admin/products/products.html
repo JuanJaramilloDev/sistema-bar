@@ -1,0 +1,330 @@
+<div class="page">
+
+  <div class="page__head">
+    <div>
+      <h1 class="page__title">Productos</h1>
+      <span class="page__subtitle">Catálogo del bar</span>
+    </div>
+    <button type="button" class="btn btn-primary" (click)="openCreate()">
+      <app-icon name="plus" /> Nuevo producto
+    </button>
+  </div>
+
+  @if (notice(); as n) {
+    <div
+      class="alert notice-alert"
+      [class.alert-success]="n.kind === 'ok'"
+      [class.alert-danger]="n.kind === 'err'"
+      (click)="dismissNotice()"
+    >
+      {{ n.text }}
+    </div>
+  }
+
+  <div class="toolbar">
+    <input
+      type="search"
+      class="input toolbar__search"
+      placeholder="Buscar producto…"
+      [value]="search()"
+      (input)="search.set($any($event.target).value)"
+    />
+    <select
+      class="select"
+      [value]="categoryFilter()"
+      (change)="categoryFilter.set($any($event.target).value)"
+    >
+      <option value="all">Todas las categorías</option>
+      @for (category of categories(); track category.id) {
+        <option [value]="category.id">{{ category.name }}</option>
+      }
+    </select>
+    <select
+      class="select"
+      [value]="statusFilter()"
+      (change)="statusFilter.set($any($event.target).value)"
+    >
+      <option value="all">Todos los estados</option>
+      <option value="active">Activos</option>
+      <option value="inactive">Inactivos</option>
+    </select>
+  </div>
+
+  <section class="card panel">
+    <div class="panel__body">
+      @switch (state()) {
+        @case ('loading') {
+          <app-loading message="Cargando productos…" />
+        }
+        @case ('error') {
+          <div class="panel__body--pad">
+            <div class="alert alert-danger">
+              No fue posible cargar los productos.
+              <button type="button" class="link-btn" (click)="load()">Reintentar</button>
+            </div>
+          </div>
+        }
+        @default {
+          @if (all().length === 0) {
+            <app-empty
+              title="Aún no hay productos"
+              hint="Crea el primero para empezar a armar el catálogo."
+            />
+          } @else if (filtered().length === 0) {
+            <app-empty title="Ningún producto coincide con los filtros" />
+          } @else {
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Producto</th>
+                    <th>Categoría</th>
+                    <th class="num">P. venta</th>
+                    <th class="num">Costo</th>
+                    <th class="num">Stock mín.</th>
+                    <th class="col-tight">Estado</th>
+                    <th class="col-tight">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (product of filtered(); track product.id) {
+                    <tr [class.is-inactive]="!product.active">
+                      <td>
+                        <div class="cell-main">
+                          @if (product.image) {
+                            <img class="thumb" [src]="product.image" [alt]="product.name" />
+                          } @else {
+                            <span class="thumb thumb--empty">—</span>
+                          }
+                          <div>
+                            <div class="cell-main__name">{{ product.name }}</div>
+                            @if (product.description) {
+                              <div class="cell-main__sub">{{ product.description }}</div>
+                            }
+                          </div>
+                        </div>
+                      </td>
+                      <td>{{ product.category_name ?? '—' }}</td>
+                      <td class="num">{{ product.sale_price | currency }}</td>
+                      <td class="num">{{ product.cost_price | currency }}</td>
+                      <td class="num">{{ product.minimum_stock }}</td>
+                      <td class="col-tight">
+                        <span
+                          class="badge"
+                          [class.badge--success]="product.active"
+                          [class.badge--neutral]="!product.active"
+                        >
+                          {{ product.active ? 'Activo' : 'Inactivo' }}
+                        </span>
+                      </td>
+                      <td class="col-tight">
+                        <div class="actions">
+                          <button
+                            type="button"
+                            class="icon-btn"
+                            title="Editar"
+                            (click)="openEdit(product)"
+                          >
+                            <app-icon name="edit" />
+                          </button>
+                          <button
+                            type="button"
+                            class="icon-btn"
+                            [title]="product.active ? 'Desactivar' : 'Activar'"
+                            [disabled]="busyId() === product.id"
+                            (click)="toggleActive(product)"
+                          >
+                            <app-icon name="power" />
+                          </button>
+                          <button
+                            type="button"
+                            class="icon-btn icon-btn--danger"
+                            title="Eliminar"
+                            (click)="askDelete(product)"
+                          >
+                            <app-icon name="trash" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        }
+      }
+    </div>
+  </section>
+</div>
+
+<!-- Modal: crear / editar producto -->
+<app-modal
+  [open]="formOpen()"
+  [locked]="saving()"
+  [title]="editing() ? 'Editar producto' : 'Nuevo producto'"
+  (closed)="closeForm()"
+>
+  @if (categories().length === 0) {
+    <p>Primero crea al menos una categoría para poder registrar productos.</p>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" (click)="closeForm()">Entendido</button>
+    </div>
+  } @else {
+    <form class="form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <div class="field field--full">
+        <label for="p-name">Nombre</label>
+        <input
+          id="p-name"
+          type="text"
+          class="input"
+          formControlName="name"
+          placeholder="Ej. Cerveza Águila 330 ml"
+          [class.is-invalid]="form.controls.name.touched && form.controls.name.invalid"
+        />
+        @if (form.controls.name.touched && form.controls.name.invalid) {
+          <span class="field-error">El nombre es obligatorio.</span>
+        }
+      </div>
+
+      <div class="form-grid">
+        <div class="field field--full">
+          <label for="p-cat">Categoría</label>
+          <select
+            id="p-cat"
+            class="select"
+            formControlName="category_id"
+            [class.is-invalid]="form.controls.category_id.touched && form.controls.category_id.invalid"
+          >
+            <option value="" disabled>Selecciona una categoría</option>
+            @for (category of categories(); track category.id) {
+              <option [value]="category.id">
+                {{ category.name }}{{ category.active ? '' : ' (inactiva)' }}
+              </option>
+            }
+          </select>
+          @if (form.controls.category_id.touched && form.controls.category_id.invalid) {
+            <span class="field-error">Selecciona una categoría.</span>
+          }
+        </div>
+
+        <div class="field field--full">
+          <label for="p-desc">Descripción <span class="hint">(opcional)</span></label>
+          <textarea
+            id="p-desc"
+            class="input textarea"
+            formControlName="description"
+            placeholder="Presentación, notas…"
+          ></textarea>
+        </div>
+
+        <div class="field">
+          <label for="p-sale">Precio de venta</label>
+          <input
+            id="p-sale"
+            type="number"
+            inputmode="numeric"
+            min="0"
+            step="100"
+            class="input"
+            formControlName="sale_price"
+            [class.is-invalid]="form.controls.sale_price.touched && form.controls.sale_price.invalid"
+          />
+          @if (form.controls.sale_price.touched && form.controls.sale_price.invalid) {
+            <span class="field-error">Debe ser mayor que 0.</span>
+          }
+        </div>
+
+        <div class="field">
+          <label for="p-cost">Precio de costo</label>
+          <input
+            id="p-cost"
+            type="number"
+            inputmode="numeric"
+            min="0"
+            step="100"
+            class="input"
+            formControlName="cost_price"
+            [class.is-invalid]="form.controls.cost_price.touched && form.controls.cost_price.invalid"
+          />
+          @if (form.controls.cost_price.touched && form.controls.cost_price.invalid) {
+            <span class="field-error">No puede ser negativo.</span>
+          }
+        </div>
+
+        <div class="field">
+          <label for="p-min">Stock mínimo</label>
+          <input
+            id="p-min"
+            type="number"
+            inputmode="numeric"
+            min="0"
+            step="1"
+            class="input"
+            formControlName="minimum_stock"
+            [class.is-invalid]="form.controls.minimum_stock.touched && form.controls.minimum_stock.invalid"
+          />
+          @if (form.controls.minimum_stock.touched && form.controls.minimum_stock.invalid) {
+            <span class="field-error">Número entero, 0 o mayor.</span>
+          }
+        </div>
+
+        <div class="field">
+          <label for="p-img">Imagen (URL) <span class="hint">(opcional)</span></label>
+          <input
+            id="p-img"
+            type="url"
+            class="input"
+            formControlName="image"
+            placeholder="https://…"
+            [class.is-invalid]="form.controls.image.touched && form.controls.image.invalid"
+          />
+          @if (form.controls.image.touched && form.controls.image.invalid) {
+            <span class="field-error">Escribe una URL válida (http/https).</span>
+          }
+        </div>
+      </div>
+
+      @if (formError()) {
+        <div class="alert alert-danger">{{ formError() }}</div>
+      }
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" (click)="closeForm()" [disabled]="saving()">
+          Cancelar
+        </button>
+        <button type="submit" class="btn btn-primary" [disabled]="saving()">
+          @if (saving()) { <span class="spinner"></span> Guardando… }
+          @else { {{ editing() ? 'Guardar cambios' : 'Crear producto' }} }
+        </button>
+      </div>
+    </form>
+  }
+</app-modal>
+
+<!-- Modal: confirmar borrado -->
+<app-modal
+  [open]="deleteTarget() !== null"
+  [locked]="deleting()"
+  title="Eliminar producto"
+  (closed)="cancelDelete()"
+>
+  @if (deleteTarget(); as target) {
+    <p>
+      ¿Eliminar el producto <strong>«{{ target.name }}»</strong>?
+      Esta acción no se puede deshacer. Si ya tuvo movimiento, es mejor desactivarlo.
+    </p>
+    @if (deleteError()) {
+      <div class="alert alert-danger">{{ deleteError() }}</div>
+    }
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" (click)="cancelDelete()" [disabled]="deleting()">
+        Cancelar
+      </button>
+      <button type="button" class="btn btn-danger" (click)="confirmDelete()" [disabled]="deleting()">
+        @if (deleting()) { <span class="spinner"></span> Eliminando… }
+        @else { Eliminar }
+      </button>
+    </div>
+  }
+</app-modal>

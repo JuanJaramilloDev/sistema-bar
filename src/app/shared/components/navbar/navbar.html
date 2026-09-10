@@ -1,0 +1,40 @@
+<header class="navbar">
+  <button
+    type="button"
+    class="navbar__burger"
+    (click)="menuToggle.emit()"
+    aria-label="Abrir menú"
+  >
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round">
+      <path d="M3 6h18M3 12h18M3 18h18" />
+    </svg>
+  </button>
+
+  <span class="navbar__brand">
+    <span class="navbar__brand-mark">PR</span>
+    <span class="navbar__brand-text">Portón Rojo</span>
+  </span>
+
+  <div class="navbar__spacer"></div>
+
+  <div class="navbar__user">
+    <span class="navbar__name">{{ name() }}</span>
+    <span class="navbar__role">{{ roleLabel() }}</span>
+  </div>
+
+  <button
+    type="button"
+    class="btn btn-ghost navbar__logout"
+    (click)="logout()"
+    [disabled]="loggingOut()"
+  >
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
+    </svg>
+    <span class="navbar__logout-text">
+      {{ loggingOut() ? 'Saliendo…' : 'Cerrar sesión' }}
+    </span>
+  </button>
+</header>

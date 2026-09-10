@@ -1,0 +1,105 @@
+:host {
+  display: block;
+}
+
+.navbar {
+  height: var(--header-h);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.navbar__burger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.navbar__burger:hover {
+  color: var(--text);
+}
+
+/* En escritorio el brand vive en el sidebar; aquí solo aparece en móvil/tablet
+   (cuando el sidebar está oculto). */
+.navbar__brand {
+  display: none;
+  align-items: center;
+  gap: 9px;
+}
+.navbar__brand-mark {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+.navbar__brand-text {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.navbar__spacer {
+  flex: 1;
+}
+
+.navbar__user {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.25;
+}
+.navbar__name {
+  font-size: 13px;
+  font-weight: 600;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.navbar__role {
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.navbar__logout {
+  padding: 8px 12px;
+}
+
+@media (max-width: 1023px) {
+  .navbar__burger {
+    display: inline-flex;
+  }
+  .navbar__brand {
+    display: flex;
+  }
+}
+
+@media (max-width: 560px) {
+  .navbar__brand-text {
+    display: none;
+  }
+  .navbar__user {
+    display: none;
+  }
+  .navbar__logout-text {
+    display: none;
+  }
+  .navbar__logout {
+    padding: 8px;
+  }
+}
