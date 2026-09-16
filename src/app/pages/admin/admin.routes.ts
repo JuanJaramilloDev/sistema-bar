@@ -5,8 +5,8 @@ import { Layout } from '../../shared/components/layout/layout';
  * Rama /admin. Protegida en app.routes.ts con authGuard + roleGuard('admin').
  * Todas las páginas cuelgan del layout común (sidebar + navbar).
  *
- * Los módulos ventas / invoices / reports / employees se añaden aquí en sus
- * fases; hasta entonces el sidebar los muestra como "Pronto".
+ * Los módulos invoices / reports / employees se añaden aquí en sus fases;
+ * hasta entonces el sidebar los muestra como "Pronto".
  *
  * El módulo de empleados (`pages/admin/employees/`, `core/services/employees.ts`
  * y la Edge Function `create-employee`) está construido pero desconectado hasta
@@ -22,6 +22,10 @@ export const ADMIN_ROUTES: Routes = [
         path: 'dashboard',
         loadComponent: () =>
           import('./dashboard/dashboard').then((m) => m.Dashboard)
+      },
+      {
+        path: 'sales',
+        loadComponent: () => import('./sales/sales').then((m) => m.Sales)
       },
       {
         path: 'categories',

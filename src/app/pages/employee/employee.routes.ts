@@ -5,8 +5,8 @@ import { Layout } from '../../shared/components/layout/layout';
  * Rama /employee. Protegida en app.routes.ts con authGuard + roleGuard('employee').
  * Todas las páginas cuelgan del layout común (sidebar + navbar).
  *
- * Los módulos sales / pending se añaden aquí en sus fases; hasta entonces el
- * sidebar los muestra como "Pronto".
+ * El módulo pending se añade aquí en su fase; hasta entonces el sidebar lo
+ * muestra como "Pronto".
  *
  * `inventory` y `customers` reutilizan el componente de admin (el componente se
  * adapta al rol; la RLS/RPC de Supabase impone la seguridad real).
@@ -21,6 +21,10 @@ export const EMPLOYEE_ROUTES: Routes = [
         path: 'dashboard',
         loadComponent: () =>
           import('./dashboard/dashboard').then((m) => m.Dashboard)
+      },
+      {
+        path: 'sales',
+        loadComponent: () => import('./sales/sales').then((m) => m.Sales)
       },
       {
         path: 'inventory',

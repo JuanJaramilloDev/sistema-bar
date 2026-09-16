@@ -1,0 +1,610 @@
+<div class="page">
+
+  <div class="page__head">
+    <div>
+      <h1 class="page__title">Ventas</h1>
+      <span class="page__subtitle">Registro y control de ventas del bar</span>
+    </div>
+    <div class="tabs">
+      <button
+        type="button"
+        class="tabs__btn"
+        [class.is-active]="tab() === 'register'"
+        (click)="selectTab('register')"
+      >Registrar</button>
+      <button
+        type="button"
+        class="tabs__btn"
+        [class.is-active]="tab() === 'list'"
+        (click)="selectTab('list')"
+      >Ventas</button>
+    </div>
+  </div>
+
+  @if (notice(); as n) {
+    <div
+      class="alert"
+      [class.alert-success]="n.kind === 'ok'"
+      [class.alert-danger]="n.kind === 'err'"
+      (click)="dismissNotice()"
+    >{{ n.text }}</div>
+  }
+
+  <!-- ============================ REGISTRAR ============================ -->
+  @if (tab() === 'register') {
+
+    @switch (catalogState()) {
+      @case ('loading') {
+        <app-loading message="Cargando productos…" />
+      }
+      @case ('error') {
+        <div class="alert alert-danger">
+          No fue posible cargar el catálogo.
+          <button type="button" class="link-btn" (click)="loadCatalog()">Reintentar</button>
+        </div>
+      }
+      @default {
+        <div class="pos">
+
+          <!-- Catálogo -->
+          <section class="card panel pos__catalog">
+            <div class="panel__head">
+              <span class="panel__title">Productos</span>
+              <input
+                type="search"
+                class="input pos__search"
+                placeholder="Buscar producto…"
+                [value]="productSearch()"
+                (input)="productSearch.set($any($event.target).value)"
+              />
+            </div>
+            <div class="panel__body">
+              @if (filteredCatalog().length === 0) {
+                <app-empty title="Ningún producto coincide" />
+              } @else {
+                <ul class="prod-list">
+                  @for (p of filteredCatalog(); track p.id) {
+                    <li>
+                      <button
+                        type="button"
+                        class="prod"
+                        [class.prod--out]="p.available <= 0"
+                        [class.prod--in]="p.inCart"
+                        [disabled]="p.available <= 0"
+                        (click)="addToCart(p)"
+                      >
+                        <span class="prod__name">{{ p.name }}</span>
+                        <span class="prod__meta">
+                          <span class="prod__price">{{ p.unitPrice | currency }}</span>
+                          <span
+                            class="prod__stock"
+                            [class.is-low]="p.available > 0 && p.available <= 5"
+                            [class.is-out]="p.available <= 0"
+                          >{{ p.available > 0 ? p.available + ' disp.' : 'Sin stock' }}</span>
+                        </span>
+                      </button>
+                    </li>
+                  }
+                </ul>
+              }
+            </div>
+          </section>
+
+          <!-- Carrito / cobro -->
+          <section class="card panel pos__cart">
+            <div class="panel__head">
+              <span class="panel__title">Venta actual</span>
+              @if (cart().length > 0) {
+                <button type="button" class="link-btn" (click)="clearCart()">Vaciar</button>
+              }
+            </div>
+            <div class="panel__body panel__body--pad">
+
+              @if (cart().length === 0) {
+                <app-empty title="Sin productos" hint="Toca un producto para agregarlo." />
+              } @else {
+
+                <div class="cart">
+                  @for (line of cart(); track line.productId) {
+                    <div class="cart-line" [class.is-over]="line.quantity > line.available">
+                      <div class="cart-line__info">
+                        <span class="cart-line__name">{{ line.name }}</span>
+                        <span class="cart-line__unit">{{ line.unitPrice | currency }} c/u</span>
+                      </div>
+                      <div class="qty">
+                        <button type="button" class="qty__btn" (click)="step(line.productId, -1)">−</button>
+                        <input
+                          class="qty__input"
+                          type="number"
+                          inputmode="numeric"
+                          min="1"
+                          [value]="line.quantity"
+                          (change)="setQuantity(line.productId, $any($event.target).value)"
+                        />
+                        <button
+                          type="button"
+                          class="qty__btn"
+                          [disabled]="line.quantity >= line.available"
+                          (click)="step(line.productId, 1)"
+                        >+</button>
+                      </div>
+                      <span class="cart-line__total">{{ line.unitPrice * line.quantity | currency }}</span>
+                      <button type="button" class="icon-btn icon-btn--danger" title="Quitar" (click)="removeLine(line.productId)">
+                        <app-icon name="trash" />
+                      </button>
+                    </div>
+                  }
+                </div>
+
+                @for (line of cart(); track line.productId) {
+                  @if (line.quantity > line.available) {
+                    <div class="field-error">«{{ line.name }}»: solo hay {{ line.available }} disponibles.</div>
+                  }
+                }
+
+                <div class="cobro">
+                  <div class="field">
+                    <label for="s-discount">Descuento</label>
+                    <input
+                      id="s-discount"
+                      type="number"
+                      inputmode="numeric"
+                      min="0"
+                      step="500"
+                      class="input"
+                      [class.is-invalid]="discountInvalid()"
+                      [value]="discount()"
+                      (input)="onDiscount($any($event.target).value)"
+                    />
+                    @if (discountInvalid()) {
+                      <span class="field-error">No puede superar el subtotal.</span>
+                    }
+                  </div>
+
+                  <div class="totals">
+                    <div class="totals__row"><span>Subtotal</span><span>{{ subtotal() | currency }}</span></div>
+                    @if (discount() > 0) {
+                      <div class="totals__row totals__row--muted"><span>Descuento</span><span>−{{ discount() | currency }}</span></div>
+                    }
+                    <div class="totals__row totals__row--big"><span>Total</span><span>{{ total() | currency }}</span></div>
+                  </div>
+
+                  <div class="field">
+                    <label>¿Cómo se paga?</label>
+                    <div class="seg">
+                      <button type="button" class="seg__btn" [class.is-active]="payMode() === 'full'" (click)="setPayMode('full')">Pago completo</button>
+                      <button type="button" class="seg__btn" [class.is-active]="payMode() === 'custom'" (click)="setPayMode('custom')">Abono parcial</button>
+                      <button type="button" class="seg__btn" [class.is-active]="payMode() === 'none'" (click)="setPayMode('none')">Fiado</button>
+                    </div>
+                  </div>
+
+                  @if (payMode() !== 'none') {
+                    <div class="cobro__pay">
+                      <div class="field">
+                        <label for="s-method">Método</label>
+                        <select id="s-method" class="select" [value]="payMethod()" (change)="setMethod($any($event.target).value)">
+                          @for (m of methods; track m) {
+                            <option [value]="m">{{ methodLabel(m) }}</option>
+                          }
+                        </select>
+                      </div>
+                      @if (payMode() === 'custom') {
+                        <div class="field">
+                          <label for="s-amount">Monto pagado</label>
+                          <input
+                            id="s-amount"
+                            type="number"
+                            inputmode="numeric"
+                            min="0"
+                            step="500"
+                            class="input"
+                            [value]="customAmount()"
+                            (input)="onCustomAmount($any($event.target).value)"
+                          />
+                        </div>
+                      }
+                    </div>
+                  }
+
+                  @if (customerRequired()) {
+                    <div class="field">
+                      <label for="s-customer">Cliente <span class="hint">(obligatorio: queda saldo pendiente)</span></label>
+                      <select id="s-customer" class="select" [class.is-invalid]="customerId() == null" [value]="customerId() ?? ''" (change)="onCustomer($any($event.target).value)">
+                        <option value="">— Selecciona un cliente —</option>
+                        @for (c of customers(); track c.id) {
+                          <option [value]="c.id">{{ c.name }}</option>
+                        }
+                      </select>
+                    </div>
+                  } @else {
+                    <div class="field">
+                      <label for="s-customer2">Cliente <span class="hint">(opcional)</span></label>
+                      <select id="s-customer2" class="select" [value]="customerId() ?? ''" (change)="onCustomer($any($event.target).value)">
+                        <option value="">— Sin cliente —</option>
+                        @for (c of customers(); track c.id) {
+                          <option [value]="c.id">{{ c.name }}</option>
+                        }
+                      </select>
+                    </div>
+                  }
+
+                  <div class="totals totals--cobro">
+                    <div class="totals__row"><span>Pagado ahora</span><span>{{ paidAmount() | currency }}</span></div>
+                    <div class="totals__row" [class.totals__row--pending]="pending() > 0">
+                      <span>Pendiente</span><span>{{ pending() | currency }}</span>
+                    </div>
+                  </div>
+
+                  @if (formError()) {
+                    <div class="alert alert-danger">{{ formError() }}</div>
+                  }
+
+                  <button type="button" class="btn btn-primary btn-block" [disabled]="!canSubmit()" (click)="submit()">
+                    @if (saving()) { <span class="spinner"></span> Registrando… }
+                    @else { <app-icon name="cart" /> Registrar venta · {{ total() | currency }} }
+                  </button>
+                </div>
+              }
+            </div>
+          </section>
+        </div>
+      }
+    }
+  }
+
+  <!-- ============================== LISTADO ============================== -->
+  @if (tab() === 'list') {
+
+    <div class="toolbar">
+      <input
+        type="search"
+        class="input toolbar__search"
+        placeholder="Buscar por factura, cliente o empleado…"
+        [value]="listSearch()"
+        (input)="listSearch.set($any($event.target).value)"
+      />
+      @if (isAdmin()) {
+        <div class="seg">
+          <button type="button" class="seg__btn" [class.is-active]="range() === 'today'" (click)="setRange('today')">Hoy</button>
+          <button type="button" class="seg__btn" [class.is-active]="range() === 'week'" (click)="setRange('week')">7 días</button>
+          <button type="button" class="seg__btn" [class.is-active]="range() === 'month'" (click)="setRange('month')">30 días</button>
+          <button type="button" class="seg__btn" [class.is-active]="range() === 'all'" (click)="setRange('all')">Todo</button>
+        </div>
+      } @else {
+        <span class="seg-label">Ventas de hoy</span>
+      }
+    </div>
+
+    @if (listState() === 'ready' && sales().length > 0) {
+      <div class="stats sales-stats">
+        <div class="card stat">
+          <span class="stat__label">Ventas</span>
+          <span class="stat__value">{{ listTotals().count }}</span>
+        </div>
+        <div class="card stat">
+          <span class="stat__label">Vendido</span>
+          <span class="stat__value">{{ listTotals().sold | currency }}</span>
+        </div>
+        <div class="card stat" [class.stat--warn]="listTotals().pending > 0">
+          <span class="stat__label">Pendiente</span>
+          <span class="stat__value">{{ listTotals().pending | currency }}</span>
+        </div>
+        <div class="card stat">
+          <span class="stat__label">Efectivo</span>
+          <span class="stat__value">{{ listTotals().cash | currency }}</span>
+        </div>
+        <div class="card stat">
+          <span class="stat__label">Transferencias</span>
+          <span class="stat__value">{{ listTotals().transfer | currency }}</span>
+          <span class="stat__hint">Nequi + transferencia + tarjeta</span>
+        </div>
+      </div>
+    }
+
+    <section class="card panel">
+      <div class="panel__body">
+        @switch (listState()) {
+          @case ('loading') {
+            <app-loading message="Cargando ventas…" />
+          }
+          @case ('error') {
+            <div class="panel__body--pad">
+              <div class="alert alert-danger">
+                No fue posible cargar las ventas.
+                <button type="button" class="link-btn" (click)="loadList()">Reintentar</button>
+              </div>
+            </div>
+          }
+          @default {
+            @if (sales().length === 0) {
+              <app-empty title="No hay ventas en este periodo" />
+            } @else if (filteredSales().length === 0) {
+              <app-empty title="Ninguna venta coincide con la búsqueda" />
+            } @else {
+              <div class="table-wrap">
+                <table class="table sales-table">
+                  <thead>
+                    <tr>
+                      <th class="col-tight">Factura</th>
+                      <th class="col-tight">Fecha</th>
+                      <th>Cliente</th>
+                      <th>Empleado</th>
+                      <th class="num">Total</th>
+                      <th class="num">Pagado</th>
+                      <th class="num">Pendiente</th>
+                      <th class="col-tight"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (s of filteredSales(); track s.id) {
+                      <tr [class.is-open]="expandedId() === s.id">
+                        <td class="col-tight">{{ s.invoiceNumber ? '#' + s.invoiceNumber : '—' }}</td>
+                        <td class="col-tight">{{ s.createdAt | date:'dd/MM/yy HH:mm' }}</td>
+                        <td>{{ s.customerName ?? '—' }}</td>
+                        <td>{{ s.employeeName ?? '—' }}</td>
+                        <td class="num">{{ s.total | currency }}</td>
+                        <td class="num">{{ s.paid | currency }}</td>
+                        <td class="num">
+                          <span [class.owes]="s.pending > 0">{{ s.pending | currency }}</span>
+                        </td>
+                        <td class="col-tight">
+                          <div class="actions">
+                            @if (isAdmin()) {
+                              <button type="button" class="icon-btn" title="Editar venta" (click)="openEdit(s)">
+                                <app-icon name="edit" />
+                              </button>
+                            }
+                            <button
+                              type="button"
+                              class="icon-btn chevron"
+                              [class.chevron--open]="expandedId() === s.id"
+                              [title]="expandedId() === s.id ? 'Ocultar detalle' : 'Ver detalle'"
+                              (click)="toggleExpand(s)"
+                            >
+                              <app-icon name="chevronDown" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      @if (expandedId() === s.id) {
+                        <tr class="detail-row">
+                          <td colspan="8">
+                            @if (detailLoadingId() === s.id) {
+                              <app-loading message="Cargando detalle…" />
+                            } @else if (detailCache()[s.id]; as d) {
+                              <div class="detail">
+                                <div class="detail__items">
+                                  <table class="mini-table">
+                                    <thead>
+                                      <tr>
+                                        <th>Producto</th>
+                                        <th class="num">Cant.</th>
+                                        <th class="num">Precio</th>
+                                        <th class="num">Subtotal</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      @for (it of d.items; track it.id) {
+                                        <tr>
+                                          <td>{{ it.productName }}</td>
+                                          <td class="num">{{ it.quantity }}</td>
+                                          <td class="num">{{ it.unitPrice | currency }}</td>
+                                          <td class="num">{{ it.subtotal | currency }}</td>
+                                        </tr>
+                                      }
+                                    </tbody>
+                                  </table>
+                                </div>
+                                <div class="detail__side">
+                                  <div class="detail__row"><span>Subtotal</span><span>{{ d.subtotal | currency }}</span></div>
+                                  @if (d.discount > 0) {
+                                    <div class="detail__row"><span>Descuento</span><span>−{{ d.discount | currency }}</span></div>
+                                  }
+                                  <div class="detail__row detail__row--big"><span>Total</span><span>{{ d.total | currency }}</span></div>
+                                  <div class="detail__pays">
+                                    <span class="detail__lbl">Pago</span>
+                                    @if (d.payments.length === 0) {
+                                      <span class="badge badge--danger">Sin pago (fiado)</span>
+                                    } @else {
+                                      @for (p of d.payments; track $index) {
+                                        <span class="badge badge--neutral">{{ methodLabel(p.method) }} · {{ p.amount | currency }}</span>
+                                      }
+                                    }
+                                  </div>
+                                  <div class="detail__row">
+                                    <span>Estado</span>
+                                    <span class="badge" [class]="statusClass(s.status)">{{ statusLabel(s.status) }}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            }
+                          </td>
+                        </tr>
+                      }
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          }
+        }
+      </div>
+    </section>
+  }
+</div>
+
+<!-- Recibo de la última venta -->
+<app-modal [open]="lastSale() !== null" title="Venta registrada" (closed)="closeReceipt()">
+  @if (lastSale(); as sale) {
+    <div class="receipt">
+      @if (sale.invoiceNumber) {
+        <div class="receipt__invoice">Factura #{{ sale.invoiceNumber }}</div>
+      }
+      <div class="readonly-box"><span>Subtotal</span><span>{{ sale.subtotal | currency }}</span></div>
+      @if (sale.discount > 0) {
+        <div class="readonly-box"><span>Descuento</span><span>−{{ sale.discount | currency }}</span></div>
+      }
+      <div class="readonly-box"><span>Total</span><span>{{ sale.total | currency }}</span></div>
+      <div class="readonly-box"><span>Pagado</span><span>{{ sale.paid | currency }}</span></div>
+      <div class="readonly-box"><span>Pendiente</span><span>{{ sale.pending | currency }}</span></div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-primary" (click)="closeReceipt()">Listo</button>
+    </div>
+  }
+</app-modal>
+
+<!-- Editar venta (solo admin) -->
+<app-modal
+  [open]="editSale() !== null"
+  [locked]="editSaving()"
+  [title]="editSale() ? 'Editar venta ' + (editSale()!.invoiceNumber ? '#' + editSale()!.invoiceNumber : '') : 'Editar venta'"
+  (closed)="closeEdit()"
+>
+  @if (editSale()) {
+    <div class="form">
+      <p class="hint">
+        Al bajar una cantidad, la diferencia vuelve al inventario; al subirla, se
+        descuenta (si hay stock). Se registra el ajuste en el historial de inventario.
+      </p>
+
+      @if (editItems().length === 0) {
+        <app-loading message="Cargando venta…" />
+      } @else {
+        <div class="cart">
+          @for (line of editItems(); track line.productId) {
+            <div class="cart-line" [class.is-over]="line.quantity > line.available">
+              <div class="cart-line__info">
+                <span class="cart-line__name">{{ line.name }}</span>
+                <span class="cart-line__unit">{{ line.unitPrice | currency }} c/u · máx {{ line.available }}</span>
+              </div>
+              <div class="qty">
+                <button type="button" class="qty__btn" (click)="editStep(line.productId, -1)">−</button>
+                <input
+                  class="qty__input"
+                  type="number"
+                  inputmode="numeric"
+                  min="0"
+                  [value]="line.quantity"
+                  (change)="editSetQty(line.productId, $any($event.target).value)"
+                />
+                <button
+                  type="button"
+                  class="qty__btn"
+                  [disabled]="line.quantity >= line.available"
+                  (click)="editStep(line.productId, 1)"
+                >+</button>
+              </div>
+              <span class="cart-line__total">{{ line.unitPrice * line.quantity | currency }}</span>
+            </div>
+          }
+        </div>
+
+        @for (line of editItems(); track line.productId) {
+          @if (line.quantity > line.available) {
+            <div class="field-error">«{{ line.name }}»: máximo {{ line.available }} (stock + lo ya vendido).</div>
+          }
+        }
+
+        <div class="field">
+          <label for="e-discount">Descuento</label>
+          <input
+            id="e-discount"
+            type="number"
+            inputmode="numeric"
+            min="0"
+            step="500"
+            class="input"
+            [class.is-invalid]="editDiscountInvalid()"
+            [value]="editDiscount()"
+            (input)="editOnDiscount($any($event.target).value)"
+          />
+        </div>
+
+        <div class="totals">
+          <div class="totals__row"><span>Subtotal</span><span>{{ editSubtotal() | currency }}</span></div>
+          @if (editDiscount() > 0) {
+            <div class="totals__row totals__row--muted"><span>Descuento</span><span>−{{ editDiscount() | currency }}</span></div>
+          }
+          <div class="totals__row totals__row--big"><span>Total</span><span>{{ editTotal() | currency }}</span></div>
+        </div>
+
+        <div class="field">
+          <label>Pago</label>
+          <div class="seg">
+            <button type="button" class="seg__btn" [class.is-active]="editPayMode() === 'full'" (click)="editSetPayMode('full')">Pago completo</button>
+            <button type="button" class="seg__btn" [class.is-active]="editPayMode() === 'custom'" (click)="editSetPayMode('custom')">Abono parcial</button>
+            <button type="button" class="seg__btn" [class.is-active]="editPayMode() === 'none'" (click)="editSetPayMode('none')">Fiado</button>
+          </div>
+        </div>
+
+        @if (editPayMode() !== 'none') {
+          <div class="cobro__pay">
+            <div class="field">
+              <label for="e-method">Método</label>
+              <select id="e-method" class="select" [value]="editPayMethod()" (change)="editSetMethod($any($event.target).value)">
+                @for (m of methods; track m) {
+                  <option [value]="m">{{ methodLabel(m) }}</option>
+                }
+              </select>
+            </div>
+            @if (editPayMode() === 'custom') {
+              <div class="field">
+                <label for="e-amount">Monto pagado</label>
+                <input
+                  id="e-amount"
+                  type="number"
+                  inputmode="numeric"
+                  min="0"
+                  step="500"
+                  class="input"
+                  [value]="editAmount()"
+                  (input)="editOnAmount($any($event.target).value)"
+                />
+              </div>
+            }
+          </div>
+        }
+
+        <div class="field">
+          <label for="e-customer">
+            Cliente
+            @if (editPending() > 0) { <span class="hint">(obligatorio: queda pendiente)</span> }
+            @else { <span class="hint">(opcional)</span> }
+          </label>
+          <select
+            id="e-customer"
+            class="select"
+            [class.is-invalid]="editPending() > 0 && editCustomerId() == null"
+            [value]="editCustomerId() ?? ''"
+            (change)="editOnCustomer($any($event.target).value)"
+          >
+            <option value="">— Sin cliente —</option>
+            @for (c of customers(); track c.id) {
+              <option [value]="c.id">{{ c.name }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="totals totals--cobro">
+          <div class="totals__row"><span>Pagado</span><span>{{ editPaid() | currency }}</span></div>
+          <div class="totals__row" [class.totals__row--pending]="editPending() > 0">
+            <span>Pendiente</span><span>{{ editPending() | currency }}</span>
+          </div>
+        </div>
+      }
+
+      @if (editError()) {
+        <div class="alert alert-danger">{{ editError() }}</div>
+      }
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" (click)="closeEdit()" [disabled]="editSaving()">Cancelar</button>
+        <button type="button" class="btn btn-primary" [disabled]="!editCanSave()" (click)="submitEdit()">
+          @if (editSaving()) { <span class="spinner"></span> Guardando… }
+          @else { Guardar cambios }
+        </button>
+      </div>
+    </div>
+  }
+</app-modal>

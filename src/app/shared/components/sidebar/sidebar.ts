@@ -33,7 +33,7 @@ const ICONS: Record<string, string> = {
 
 const ADMIN_NAV: NavItem[] = [
   { label: 'Dashboard', path: '/admin/dashboard', icon: 'grid', ready: true },
-  { label: 'Ventas', path: '/admin/sales', icon: 'cart', ready: false },
+  { label: 'Ventas', path: '/admin/sales', icon: 'cart', ready: true },
   { label: 'Productos', path: '/admin/products', icon: 'tag', ready: true },
   { label: 'Categorías', path: '/admin/categories', icon: 'layers', ready: true },
   { label: 'Inventario', path: '/admin/inventory', icon: 'box', ready: true },
@@ -45,7 +45,7 @@ const ADMIN_NAV: NavItem[] = [
 
 const EMPLOYEE_NAV: NavItem[] = [
   { label: 'Dashboard', path: '/employee/dashboard', icon: 'grid', ready: true },
-  { label: 'Ventas', path: '/employee/sales', icon: 'cart', ready: false },
+  { label: 'Ventas', path: '/employee/sales', icon: 'cart', ready: true },
   { label: 'Pendientes', path: '/employee/pending', icon: 'clock', ready: false },
   { label: 'Clientes', path: '/employee/customers', icon: 'users', ready: true },
   { label: 'Inventario', path: '/employee/inventory', icon: 'box', ready: true }

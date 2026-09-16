@@ -1,0 +1,361 @@
+:host {
+  display: block;
+}
+
+.alert {
+  cursor: pointer;
+}
+
+.owes {
+  color: var(--warning);
+  font-weight: 600;
+}
+
+/* POS */
+
+.pos {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .pos {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pos__search {
+  max-width: 240px;
+}
+
+/* Catalogo */
+
+.prod-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+  max-height: 62vh;
+  overflow-y: auto;
+}
+
+.prod {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  text-align: left;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.14s ease, background 0.14s ease;
+}
+.prod:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  background: var(--surface-3);
+}
+.prod:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.prod--in {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+}
+.prod__name {
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.3;
+}
+.prod__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.prod__price {
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.prod__stock {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.prod__stock.is-low {
+  color: var(--warning);
+}
+.prod__stock.is-out {
+  color: var(--danger);
+}
+
+/* Carrito */
+
+.cart {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.cart-line {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.cart-line.is-over {
+  color: var(--danger);
+}
+.cart-line__info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.cart-line__name {
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cart-line__unit {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.cart-line__total {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: 13px;
+  min-width: 74px;
+  text-align: right;
+}
+
+.qty {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.qty__btn {
+  width: 26px;
+  height: 28px;
+  border: none;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 15px;
+  cursor: pointer;
+}
+.qty__btn:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.qty__btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.qty__input {
+  width: 38px;
+  height: 28px;
+  border: none;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  text-align: center;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  outline: none;
+}
+
+/* Cobro */
+
+.cobro {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.totals {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.totals--cobro {
+  background: transparent;
+  border-style: dashed;
+}
+.totals__row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.totals__row--muted {
+  color: var(--text-muted);
+}
+.totals__row--big {
+  font-size: 17px;
+  font-weight: 700;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+.totals__row--pending {
+  color: var(--warning);
+  font-weight: 600;
+}
+
+/* Segmentos (pago / rango de fechas) */
+.seg {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  flex-wrap: wrap;
+}
+.seg__btn {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.seg__btn.is-active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-1);
+}
+
+.cobro__pay {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.cobro__pay .field:only-child {
+  grid-column: 1 / -1;
+}
+
+.btn-block {
+  width: 100%;
+}
+
+.seg-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 7px 0;
+}
+
+/* Recibo */
+
+.receipt {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.receipt__invoice {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent);
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+/* Listado */
+
+.sales-stats {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.chevron app-icon {
+  transition: transform 0.15s ease;
+}
+.chevron--open app-icon {
+  transform: rotate(180deg);
+}
+.sales-table tbody tr.is-open {
+  background: var(--surface-2);
+}
+.sales-table tbody tr.detail-row:hover {
+  background: none;
+}
+.detail-row > td {
+  padding: 0 14px 14px;
+  background: var(--surface-2);
+}
+
+.detail {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 720px) {
+  .detail {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mini-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.mini-table th {
+  text-align: left;
+  padding: 4px 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-dim);
+}
+.mini-table td {
+  padding: 5px 8px;
+  border-top: 1px solid var(--border);
+}
+
+.detail__side {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.detail__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.detail__row--big {
+  font-weight: 700;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+.detail__pays {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0;
+}
+.detail__lbl {
+  font-size: 13px;
+  color: var(--text-dim);
+}
