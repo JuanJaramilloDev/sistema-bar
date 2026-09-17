@@ -25,17 +25,20 @@ import {
 import type {
   CartLine,
   CreateSaleResult,
+  PaymentStatus,
   SaleDetail,
   SaleListRow,
-  SalesRange,
-  SaleStatus
+  SalesRange
 } from '../../../core/models/sale';
 import type { Customer } from '../../../core/models/customer';
+import type { Category } from '../../../core/models/category';
+import { Categories as CategoriesApi } from '../../../core/services/categories';
 
 type ViewState = 'loading' | 'ready' | 'error';
 type Notice = { text: string; kind: 'ok' | 'err' };
 type Tab = 'register' | 'list';
-type PayMode = 'full' | 'none' | 'custom';
+/** Ya no existe "fiado": solo pago completo o abono parcial (siempre > 0). */
+type PayMode = 'full' | 'custom';
 
 /** Producto del catálogo con su existencia actual (para la pantalla de venta). */
 interface CatalogEntry {
@@ -43,6 +46,14 @@ interface CatalogEntry {
   name: string;
   unitPrice: number;
   available: number;
+  categoryId: number | null;
+}
+
+/** Categoría con sus productos, para el desplegable del catálogo. */
+interface CatalogGroup {
+  id: number | 'none';
+  name: string;
+  products: (CatalogEntry & { inCart: boolean })[];
 }
 
 /**
@@ -71,6 +82,7 @@ export class Sales {
   private readonly productsApi = inject(Products);
   private readonly inventoryApi = inject(Inventory);
   private readonly customersApi = inject(Customers);
+  private readonly categoriesApi = inject(CategoriesApi);
   private readonly auth = inject(Auth);
 
   private noticeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -86,8 +98,11 @@ export class Sales {
   // ----------------------------------------------------------- catálogo/POS ---
   readonly catalogState = signal<ViewState>('loading');
   readonly catalog = signal<CatalogEntry[]>([]);
+  readonly categories = signal<Category[]>([]);
   readonly customers = signal<Customer[]>([]);
   readonly productSearch = signal('');
+  /** Categoría desplegada en el catálogo (solo una a la vez). Null = ninguna. */
+  readonly expandedCategoryId = signal<number | 'none' | null>(null);
 
   readonly cart = signal<CartLine[]>([]);
   readonly discount = signal(0);
@@ -102,12 +117,39 @@ export class Sales {
   // resultado de la última venta (modal de confirmación)
   readonly lastSale = signal<CreateSaleResult | null>(null);
 
+  /** true cuando hay texto en el buscador: se muestra la lista plana filtrada. */
+  readonly isSearching = computed(() => this.productSearch().trim().length > 0);
+
   readonly filteredCatalog = computed(() => {
     const q = this.productSearch().trim().toLowerCase();
     const inCart = new Set(this.cart().map((l) => l.productId));
     return this.catalog()
       .filter((p) => !q || p.name.toLowerCase().includes(q))
       .map((p) => ({ ...p, inCart: inCart.has(p.id) }));
+  });
+
+  /** Catálogo agrupado por categoría (para el modo "sin búsqueda", colapsado). */
+  readonly catalogGroups = computed<CatalogGroup[]>(() => {
+    const inCart = new Set(this.cart().map((l) => l.productId));
+    const byCategory = new Map<number | 'none', CatalogGroup>();
+
+    for (const category of this.categories()) {
+      byCategory.set(category.id, { id: category.id, name: category.name, products: [] });
+    }
+
+    for (const p of this.catalog()) {
+      const key: number | 'none' = p.categoryId ?? 'none';
+      let group = byCategory.get(key);
+      if (!group) {
+        group = { id: key, name: 'Sin categoría', products: [] };
+        byCategory.set(key, group);
+      }
+      group.products.push({ ...p, inCart: inCart.has(p.id) });
+    }
+
+    return [...byCategory.values()]
+      .filter((g) => g.products.length > 0)
+      .sort((a, b) => a.name.localeCompare(b.name));
   });
 
   readonly subtotal = computed(() =>
@@ -118,26 +160,23 @@ export class Sales {
     Math.max(0, this.subtotal() - clampMoney(this.discount()))
   );
 
-  readonly paidAmount = computed(() => {
-    switch (this.payMode()) {
-      case 'full':
-        return this.total();
-      case 'none':
-        return 0;
-      default:
-        return Math.min(this.total(), clampMoney(this.customAmount()));
-    }
-  });
+  readonly paidAmount = computed(() =>
+    this.payMode() === 'full'
+      ? this.total()
+      : Math.min(this.total(), clampMoney(this.customAmount()))
+  );
 
   readonly pending = computed(() => Math.max(0, this.total() - this.paidAmount()));
   readonly customerRequired = computed(() => this.pending() > 0);
   readonly discountInvalid = computed(() => clampMoney(this.discount()) > this.subtotal());
+  /** Ya no existe "fiado": el pago siempre debe ser mayor que 0. */
+  readonly paymentInvalid = computed(() => this.total() > 0 && this.paidAmount() <= 0);
 
   readonly canSubmit = computed(() => {
     if (this.cart().length === 0 || this.saving()) {
       return false;
     }
-    if (this.discountInvalid()) {
+    if (this.discountInvalid() || this.paymentInvalid()) {
       return false;
     }
     if (this.cart().some((l) => l.quantity > l.available)) {
@@ -180,7 +219,8 @@ export class Sales {
       sold: rows.reduce((a, r) => a + r.total, 0),
       pending: rows.reduce((a, r) => a + r.pending, 0),
       cash: rows.reduce((a, r) => a + r.paidCash, 0),
-      transfer: rows.reduce((a, r) => a + r.paidTransfer, 0)
+      transfer: rows.reduce((a, r) => a + r.paidTransfer, 0),
+      card: rows.reduce((a, r) => a + r.paidCard, 0)
     };
   });
 
@@ -206,25 +246,21 @@ export class Sales {
   readonly editTotal = computed(() =>
     Math.max(0, this.editSubtotal() - clampMoney(this.editDiscount()))
   );
-  readonly editPaid = computed(() => {
-    switch (this.editPayMode()) {
-      case 'full':
-        return this.editTotal();
-      case 'none':
-        return 0;
-      default:
-        return Math.min(this.editTotal(), clampMoney(this.editAmount()));
-    }
-  });
+  readonly editPaid = computed(() =>
+    this.editPayMode() === 'full'
+      ? this.editTotal()
+      : Math.min(this.editTotal(), clampMoney(this.editAmount()))
+  );
   readonly editPending = computed(() => Math.max(0, this.editTotal() - this.editPaid()));
   readonly editDiscountInvalid = computed(
     () => clampMoney(this.editDiscount()) > this.editSubtotal()
   );
+  readonly editPaymentInvalid = computed(() => this.editTotal() > 0 && this.editPaid() <= 0);
   readonly editCanSave = computed(() => {
     if (this.editSaving() || this.editItems().every((l) => l.quantity <= 0)) {
       return false;
     }
-    if (this.editDiscountInvalid()) {
+    if (this.editDiscountInvalid() || this.editPaymentInvalid()) {
       return false;
     }
     if (this.editItems().some((l) => l.quantity > l.available)) {
@@ -254,10 +290,11 @@ export class Sales {
   async loadCatalog(): Promise<void> {
     this.catalogState.set('loading');
     try {
-      const [catalog, stock, customers] = await Promise.all([
+      const [catalog, stock, customers, categories] = await Promise.all([
         this.productsApi.catalog(),
         this.inventoryApi.list(),
-        this.customersApi.list()
+        this.customersApi.list(),
+        this.categoriesApi.list()
       ]);
       const stockByProduct = new Map(stock.map((s) => [s.productId, s.quantity]));
       this.catalog.set(
@@ -266,16 +303,23 @@ export class Sales {
             id: p.id,
             name: p.name,
             unitPrice: p.sale_price,
-            available: stockByProduct.get(p.id) ?? 0
+            available: stockByProduct.get(p.id) ?? 0,
+            categoryId: p.category_id
           }))
           .sort((a, b) => a.name.localeCompare(b.name))
       );
       this.customers.set(customers);
+      this.categories.set(categories);
       this.catalogState.set('ready');
     } catch (err) {
       console.error('[ventas] catálogo:', err);
       this.catalogState.set('error');
     }
+  }
+
+  /** Despliega/colapsa una categoría del catálogo (solo una a la vez). */
+  toggleCategory(id: number | 'none'): void {
+    this.expandedCategoryId.set(this.expandedCategoryId() === id ? null : id);
   }
 
   // ------------------------------------------------------------- carrito ---
@@ -392,10 +436,7 @@ export class Sales {
           quantity: l.quantity,
           unit_price: l.unitPrice
         })),
-        payment:
-          this.paidAmount() > 0
-            ? { method: this.payMethod(), amount: this.paidAmount() }
-            : null
+        payment: { method: this.payMethod(), amount: this.paidAmount() }
       });
       this.lastSale.set(result);
       this.clearCart();
@@ -503,9 +544,7 @@ export class Sales {
       const paid = detail.payments.reduce((a, p) => a + p.amount, 0);
       this.editPayMethod.set(detail.payments[0]?.method ?? 'cash');
       this.editAmount.set(paid);
-      this.editPayMode.set(
-        paid <= 0 ? 'none' : paid >= detail.total ? 'full' : 'custom'
-      );
+      this.editPayMode.set(paid >= detail.total && paid > 0 ? 'full' : 'custom');
     } catch (err) {
       console.error('[ventas] abrir edición:', err);
       this.editError.set('No fue posible cargar la venta para editar.');
@@ -585,10 +624,7 @@ export class Sales {
             quantity: l.quantity,
             unit_price: l.unitPrice
           })),
-        payment:
-          this.editPaid() > 0
-            ? { method: this.editPayMethod(), amount: this.editPaid() }
-            : null
+        payment: { method: this.editPayMethod(), amount: this.editPaid() }
       });
       this.editSale.set(null);
       this.detailCache.update((c) => {
@@ -617,15 +653,11 @@ export class Sales {
 
   // -------------------------------------------------------------- etiquetas ---
 
-  statusLabel(status: SaleStatus): string {
-    return status === 'paid' ? 'Pagada' : status === 'partial' ? 'Parcial' : 'Pendiente';
+  statusLabel(status: PaymentStatus): string {
+    return status === 'paid' ? 'Pagada' : 'Abono parcial';
   }
-  statusClass(status: SaleStatus): string {
-    return status === 'paid'
-      ? 'badge--success'
-      : status === 'partial'
-        ? 'badge--warn'
-        : 'badge--danger';
+  statusClass(status: PaymentStatus): string {
+    return status === 'paid' ? 'badge--success' : 'badge--warn';
   }
 
   dismissNotice(): void {
@@ -675,6 +707,9 @@ function friendlySaleError(error: DbError): string {
   }
   if (message.includes('INVALID_PAYMENT') || message.includes('PAYMENT_EXCEEDS_TOTAL')) {
     return 'El monto pagado no es válido.';
+  }
+  if (message.includes('PAYMENT_REQUIRED')) {
+    return 'Debes registrar un pago mayor a 0: ya no se permite dejar la venta fiada.';
   }
   if (message.includes('INVALID_METHOD')) {
     return 'El método de pago no es válido.';

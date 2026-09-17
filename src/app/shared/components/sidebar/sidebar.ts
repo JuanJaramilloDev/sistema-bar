@@ -34,19 +34,20 @@ const ICONS: Record<string, string> = {
 const ADMIN_NAV: NavItem[] = [
   { label: 'Dashboard', path: '/admin/dashboard', icon: 'grid', ready: true },
   { label: 'Ventas', path: '/admin/sales', icon: 'cart', ready: true },
+  { label: 'Abonos', path: '/admin/abonos', icon: 'clock', ready: true },
   { label: 'Productos', path: '/admin/products', icon: 'tag', ready: true },
   { label: 'Categorías', path: '/admin/categories', icon: 'layers', ready: true },
   { label: 'Inventario', path: '/admin/inventory', icon: 'box', ready: true },
   { label: 'Facturas', path: '/admin/invoices', icon: 'file', ready: false },
-  { label: 'Reportes', path: '/admin/reports', icon: 'chart', ready: false },
-  { label: 'Empleados', path: '/admin/employees', icon: 'userCheck', ready: false },
+  { label: 'Reportes', path: '/admin/reports', icon: 'chart', ready: true },
+  { label: 'Empleados', path: '/admin/employees', icon: 'userCheck', ready: true },
   { label: 'Clientes', path: '/admin/customers', icon: 'users', ready: true }
 ];
 
 const EMPLOYEE_NAV: NavItem[] = [
   { label: 'Dashboard', path: '/employee/dashboard', icon: 'grid', ready: true },
   { label: 'Ventas', path: '/employee/sales', icon: 'cart', ready: true },
-  { label: 'Pendientes', path: '/employee/pending', icon: 'clock', ready: false },
+  { label: 'Abonar', path: '/employee/pending', icon: 'clock', ready: true },
   { label: 'Clientes', path: '/employee/customers', icon: 'users', ready: true },
   { label: 'Inventario', path: '/employee/inventory', icon: 'box', ready: true }
 ];

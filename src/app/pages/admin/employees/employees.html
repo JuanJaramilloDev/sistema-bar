@@ -54,14 +54,13 @@
                     <th>Nombre</th>
                     <th>Correo</th>
                     <th class="col-tight">Rol</th>
-                    <th class="col-tight">Estado</th>
                     <th class="col-tight">Creado</th>
                     <th class="col-tight">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   @for (person of filtered(); track person.id) {
-                    <tr [class.is-inactive]="!person.active">
+                    <tr>
                       <td class="cell-main__name">
                         {{ person.name || '—' }}
                         @if (person.id === currentUserId()) {
@@ -78,15 +77,6 @@
                           {{ roleLabel(person.role) }}
                         </span>
                       </td>
-                      <td class="col-tight">
-                        <span
-                          class="badge"
-                          [class.badge--success]="person.active"
-                          [class.badge--neutral]="!person.active"
-                        >
-                          {{ person.active ? 'Activo' : 'Inactivo' }}
-                        </span>
-                      </td>
                       <td class="col-tight">{{ person.created_at | date:'dd/MM/yy' }}</td>
                       <td class="col-tight">
                         <div class="actions">
@@ -98,17 +88,14 @@
                           >
                             <app-icon name="edit" />
                           </button>
-                          @if (person.id !== currentUserId()) {
-                            <button
-                              type="button"
-                              class="icon-btn"
-                              [title]="person.active ? 'Desactivar' : 'Activar'"
-                              [disabled]="busyId() === person.id"
-                              (click)="toggleActive(person)"
-                            >
-                              <app-icon name="power" />
-                            </button>
-                          }
+                          <button
+                            type="button"
+                            class="icon-btn"
+                            title="Cambiar contraseña"
+                            (click)="openResetPassword(person)"
+                          >
+                            <app-icon name="key" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -197,4 +184,51 @@
       </button>
     </div>
   </form>
+</app-modal>
+
+<!-- Modal: cambiar contraseña -->
+<app-modal
+  [open]="passwordTarget() !== null"
+  [locked]="passwordSaving()"
+  title="Cambiar contraseña"
+  (closed)="closeResetPassword()"
+>
+  @if (passwordTarget(); as target) {
+    <form class="form" [formGroup]="passwordForm" (ngSubmit)="submitResetPassword()" novalidate>
+      <p class="hint">
+        Vas a establecer una nueva contraseña para <strong>{{ target.name || target.email }}</strong>.
+        No necesitas la contraseña anterior.
+      </p>
+      <div class="field">
+        <label for="pw-new">Nueva contraseña</label>
+        <input
+          id="pw-new"
+          type="text"
+          class="input"
+          formControlName="password"
+          autocomplete="off"
+          placeholder="Mínimo 6 caracteres"
+          [class.is-invalid]="passwordForm.controls.password.touched && passwordForm.controls.password.invalid"
+        />
+        @if (passwordForm.controls.password.touched && passwordForm.controls.password.invalid) {
+          <span class="field-error">Mínimo 6 caracteres.</span>
+        }
+        <span class="hint">Compártela de forma segura con la persona.</span>
+      </div>
+
+      @if (passwordError()) {
+        <div class="alert alert-danger">{{ passwordError() }}</div>
+      }
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" (click)="closeResetPassword()" [disabled]="passwordSaving()">
+          Cancelar
+        </button>
+        <button type="submit" class="btn btn-primary" [disabled]="passwordSaving()">
+          @if (passwordSaving()) { <span class="spinner"></span> Guardando… }
+          @else { Cambiar contraseña }
+        </button>
+      </div>
+    </form>
+  }
 </app-modal>

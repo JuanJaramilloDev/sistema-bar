@@ -1,0 +1,104 @@
+<div class="page">
+
+  <div class="page__head">
+    <div>
+      <h1 class="page__title">Abonos</h1>
+      <span class="page__subtitle">Historial de abonos a cuentas de clientes</span>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <input
+      type="search"
+      class="input toolbar__search"
+      placeholder="Buscar por factura, cliente o empleado…"
+      [value]="search()"
+      (input)="search.set($any($event.target).value)"
+    />
+    <div class="seg">
+      <button type="button" class="seg__btn" [class.is-active]="range() === 'today'" (click)="setRange('today')">Hoy</button>
+      <button type="button" class="seg__btn" [class.is-active]="range() === 'week'" (click)="setRange('week')">7 días</button>
+      <button type="button" class="seg__btn" [class.is-active]="range() === 'month'" (click)="setRange('month')">30 días</button>
+      <button type="button" class="seg__btn" [class.is-active]="range() === 'all'" (click)="setRange('all')">Todo</button>
+    </div>
+  </div>
+
+  @if (state() === 'ready' && rows().length > 0) {
+    <div class="stats">
+      <div class="card stat">
+        <span class="stat__label">Abonos</span>
+        <span class="stat__value">{{ totals().count }}</span>
+      </div>
+      <div class="card stat stat--accent">
+        <span class="stat__label">Total abonado</span>
+        <span class="stat__value">{{ totals().amount | currency }}</span>
+      </div>
+      <div class="card stat">
+        <span class="stat__label">Efectivo</span>
+        <span class="stat__value">{{ totals().cash | currency }}</span>
+      </div>
+      <div class="card stat">
+        <span class="stat__label">Transferencia</span>
+        <span class="stat__value">{{ totals().transfer | currency }}</span>
+      </div>
+      <div class="card stat">
+        <span class="stat__label">Tarjeta</span>
+        <span class="stat__value">{{ totals().card | currency }}</span>
+      </div>
+    </div>
+  }
+
+  <section class="card panel">
+    <div class="panel__body">
+      @switch (state()) {
+        @case ('loading') {
+          <app-loading message="Cargando abonos…" />
+        }
+        @case ('error') {
+          <div class="panel__body--pad">
+            <div class="alert alert-danger">
+              No fue posible cargar el historial de abonos.
+              <button type="button" class="link-btn" (click)="load()">Reintentar</button>
+            </div>
+          </div>
+        }
+        @default {
+          @if (rows().length === 0) {
+            <app-empty title="No hay abonos en este periodo" />
+          } @else if (filtered().length === 0) {
+            <app-empty title="Ningún abono coincide con la búsqueda" />
+          } @else {
+            <div class="table-wrap table-wrap--scroll">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th class="col-tight">Factura</th>
+                    <th class="col-tight">Fecha</th>
+                    <th>Cliente</th>
+                    <th>Empleado</th>
+                    <th class="col-tight">Método</th>
+                    <th class="num">Monto</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of filtered(); track row.paymentId) {
+                    <tr>
+                      <td class="col-tight">{{ row.invoiceNumber ? '#' + row.invoiceNumber : '—' }}</td>
+                      <td class="col-tight">{{ row.createdAt | date:'dd/MM/yy HH:mm' }}</td>
+                      <td>{{ row.customerName ?? '—' }}</td>
+                      <td>{{ row.employeeName ?? '—' }}</td>
+                      <td class="col-tight">
+                        <span class="badge badge--neutral">{{ methodLabel(row.method) }}</span>
+                      </td>
+                      <td class="num">{{ row.amount | currency }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        }
+      }
+    </div>
+  </section>
+</div>

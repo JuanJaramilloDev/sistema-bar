@@ -253,6 +253,30 @@ button {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
+/* Historiales largos (ventas, abonos, movimientos de inventario): se ve
+   ~8 filas y el resto se ve con scroll vertical, para no estirar la página. */
+.table-wrap--scroll {
+  max-height: 400px;
+  overflow-y: auto;
+}
+/* Variantes más cortas para listas pequeñas (p. ej. Reportes): igual idea,
+   solo cambia cuántas filas se ven antes de que aparezca el scroll. */
+.table-wrap--scroll-3 {
+  max-height: 160px;
+  overflow-y: auto;
+}
+.table-wrap--scroll-2 {
+  max-height: 120px;
+  overflow-y: auto;
+}
+.table-wrap--scroll thead th,
+.table-wrap--scroll-3 thead th,
+.table-wrap--scroll-2 thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 1;
+}
 .table {
   width: 100%;
   border-collapse: collapse;
@@ -712,3 +736,39 @@ button {
 }
 .qty-signed--up { color: #86efac; }
 .qty-signed--down { color: #fca5a5; }
+
+/* -------------------------------------------------------------------------
+   Impresión / exportar a PDF (Reportes usa window.print()). Se reutilizan
+   las mismas variables de diseño, solo se cambia su valor: todo lo demás
+   (tarjetas, tablas, texto) se adapta solo porque ya usa `var(--…)`.
+   ------------------------------------------------------------------------- */
+@media print {
+  :root {
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #f4f4f5;
+    --surface-3: #e4e4e7;
+    --border: #d4d4d8;
+    --border-strong: #a1a1aa;
+    --text: #18181b;
+    --text-muted: #3f3f46;
+    --text-dim: #52525b;
+    --shadow-1: none;
+    --shadow-2: none;
+    --shadow-3: none;
+  }
+  app-sidebar,
+  app-navbar,
+  .no-print {
+    display: none !important;
+  }
+  .shell__content {
+    padding: 0 !important;
+  }
+  .table-wrap--scroll,
+  .table-wrap--scroll-3,
+  .table-wrap--scroll-2 {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}

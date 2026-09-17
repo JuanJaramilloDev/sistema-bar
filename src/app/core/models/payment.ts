@@ -7,23 +7,18 @@
  * nunca existe un método `pending`.
  *
  * Tabla `payments` (Supabase):
- *   id          bigint identity
- *   sale_id     bigint -> sales.id
- *   method      text  ('cash' | 'nequi' | 'transfer' | 'card')
- *   amount      numeric
- *   created_at  timestamptz
+ *   id             bigint identity
+ *   sale_id        uuid -> sales.id
+ *   payment_method USER-DEFINED (enum), solo usamos 'cash' | 'transfer' | 'card'
+ *   amount         numeric
+ *   created_at     timestamptz
  */
 
-export type PaymentMethod =
-  | 'cash'
-  | 'nequi'
-  | 'transfer'
-  | 'card';
+export type PaymentMethod = 'cash' | 'transfer' | 'card';
 
 /** Métodos de pago admitidos, en orden de uso. Fuente única para los `<select>`. */
 export const PAYMENT_METHODS: readonly PaymentMethod[] = [
   'cash',
-  'nequi',
   'transfer',
   'card'
 ] as const;
@@ -33,8 +28,6 @@ export function paymentMethodLabel(method: PaymentMethod | string | null): strin
   switch (method) {
     case 'cash':
       return 'Efectivo';
-    case 'nequi':
-      return 'Nequi';
     case 'transfer':
       return 'Transferencia';
     case 'card':
@@ -46,8 +39,8 @@ export function paymentMethodLabel(method: PaymentMethod | string | null): strin
 
 export interface Payment {
   id: number;
-  sale_id: number;
-  method: PaymentMethod;
+  sale_id: string;
+  payment_method: PaymentMethod;
   amount: number;
   created_at: string;
 }

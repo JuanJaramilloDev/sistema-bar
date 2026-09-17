@@ -83,15 +83,15 @@
                       <td class="col-tight">{{ customer.created_at | date:'dd/MM/yy' }}</td>
                       <td class="col-tight">
                         <div class="actions">
-                          <button
-                            type="button"
-                            class="icon-btn"
-                            [title]="customer.cuenta > 0 ? 'Abonar / editar' : 'Editar'"
-                            (click)="openEdit(customer)"
-                          >
-                            <app-icon name="edit" />
-                          </button>
                           @if (isAdmin()) {
+                            <button
+                              type="button"
+                              class="icon-btn"
+                              [title]="customer.cuenta > 0 ? 'Abonar / editar' : 'Editar'"
+                              (click)="openEdit(customer)"
+                            >
+                              <app-icon name="edit" />
+                            </button>
                             <button
                               type="button"
                               class="icon-btn icon-btn--danger"

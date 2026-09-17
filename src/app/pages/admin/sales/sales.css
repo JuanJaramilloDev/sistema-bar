@@ -31,6 +31,67 @@
 
 /* Catalogo */
 
+.cat-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 62vh;
+  overflow-y: auto;
+}
+
+.cat-group {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.cat-group__head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: none;
+  color: var(--text);
+  font-weight: 600;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.cat-group__head:hover {
+  background: var(--surface-3);
+}
+.cat-group__head app-icon {
+  margin-left: auto;
+  transition: transform 0.15s ease;
+  color: var(--text-dim);
+}
+.cat-group.is-open .cat-group__head app-icon {
+  transform: rotate(180deg);
+}
+.cat-group__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cat-group__count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+.cat-group .prod-list {
+  max-height: none;
+  overflow: visible;
+  border-top: 1px solid var(--border);
+}
+
 .prod-list {
   list-style: none;
   margin: 0;

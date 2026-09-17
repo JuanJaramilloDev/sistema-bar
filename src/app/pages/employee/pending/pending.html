@@ -1,1 +1,161 @@
-<p>pending works!</p>
+<div class="page">
+
+  <div class="page__head">
+    <div>
+      <h1 class="page__title">Abonar</h1>
+      <span class="page__subtitle">Tus ventas con saldo pendiente</span>
+    </div>
+  </div>
+
+  @if (notice(); as n) {
+    <div
+      class="alert"
+      [class.alert-success]="n.kind === 'ok'"
+      [class.alert-danger]="n.kind === 'err'"
+      (click)="dismissNotice()"
+    >{{ n.text }}</div>
+  }
+
+  @if (state() === 'ready' && rows().length > 0) {
+    <div class="stats">
+      <div class="card stat">
+        <span class="stat__label">Ventas pendientes</span>
+        <span class="stat__value">{{ totals().count }}</span>
+      </div>
+      <div class="card stat stat--warn">
+        <span class="stat__label">Total por cobrar</span>
+        <span class="stat__value">{{ totals().pending | currency }}</span>
+      </div>
+    </div>
+  }
+
+  <div class="toolbar">
+    <input
+      type="search"
+      class="input toolbar__search"
+      placeholder="Buscar por factura o cliente…"
+      [value]="search()"
+      (input)="search.set($any($event.target).value)"
+    />
+  </div>
+
+  <section class="card panel">
+    <div class="panel__body">
+      @switch (state()) {
+        @case ('loading') {
+          <app-loading message="Cargando tus ventas pendientes…" />
+        }
+        @case ('error') {
+          <div class="panel__body--pad">
+            <div class="alert alert-danger">
+              No fue posible cargar tus ventas pendientes.
+              <button type="button" class="link-btn" (click)="load()">Reintentar</button>
+            </div>
+          </div>
+        }
+        @default {
+          @if (rows().length === 0) {
+            <app-empty
+              title="No tienes ventas pendientes"
+              hint="Cuando una venta tuya quede con saldo, aparecerá aquí para poder abonarle."
+            />
+          } @else if (filtered().length === 0) {
+            <app-empty title="Ninguna coincide con la búsqueda" />
+          } @else {
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th class="col-tight">Factura</th>
+                    <th class="col-tight">Fecha</th>
+                    <th>Cliente</th>
+                    <th class="num">Total</th>
+                    <th class="num">Pagado</th>
+                    <th class="num">Pendiente</th>
+                    <th class="col-tight"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of filtered(); track row.id) {
+                    <tr>
+                      <td class="col-tight">{{ row.invoiceNumber ? '#' + row.invoiceNumber : '—' }}</td>
+                      <td class="col-tight">{{ row.createdAt | date:'dd/MM/yy HH:mm' }}</td>
+                      <td>{{ row.customerName ?? '—' }}</td>
+                      <td class="num">{{ row.total | currency }}</td>
+                      <td class="num">{{ row.paid | currency }}</td>
+                      <td class="num"><span class="owes">{{ row.pending | currency }}</span></td>
+                      <td class="col-tight">
+                        <button type="button" class="btn btn-primary btn-sm" (click)="openAbonar(row)">
+                          Abonar
+                        </button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        }
+      }
+    </div>
+  </section>
+</div>
+
+<!-- Modal: registrar abono -->
+<app-modal
+  [open]="target() !== null"
+  [locked]="saving()"
+  [title]="target() ? 'Abonar · factura ' + (target()!.invoiceNumber ? '#' + target()!.invoiceNumber : '') : 'Abonar'"
+  (closed)="closeAbonar()"
+>
+  @if (target(); as row) {
+    <div class="form">
+      <p class="hint">
+        Cliente <strong>{{ row.customerName ?? '—' }}</strong> · pendiente
+        <strong>{{ row.pending | currency }}</strong>
+      </p>
+
+      <div class="field">
+        <label for="ab-method">Método</label>
+        <select id="ab-method" class="select" [value]="method()" (change)="setMethod($any($event.target).value)">
+          @for (m of methods; track m) {
+            <option [value]="m">{{ methodLabel(m) }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="ab-amount">Monto a abonar</label>
+        <input
+          id="ab-amount"
+          type="number"
+          inputmode="numeric"
+          min="1"
+          [max]="row.pending"
+          step="500"
+          class="input"
+          [class.is-invalid]="amountInvalid()"
+          [value]="amount()"
+          (input)="onAmount($any($event.target).value)"
+        />
+        @if (amountInvalid()) {
+          <span class="field-error">Debe ser mayor a 0 y no superar {{ row.pending | currency }}.</span>
+        }
+      </div>
+
+      @if (formError()) {
+        <div class="alert alert-danger">{{ formError() }}</div>
+      }
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" (click)="closeAbonar()" [disabled]="saving()">
+          Cancelar
+        </button>
+        <button type="button" class="btn btn-primary" [disabled]="amountInvalid() || saving()" (click)="submit()">
+          @if (saving()) { <span class="spinner"></span> Guardando… }
+          @else { Registrar abono }
+        </button>
+      </div>
+    </div>
+  }
+</app-modal>

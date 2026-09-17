@@ -59,30 +59,72 @@
               />
             </div>
             <div class="panel__body">
-              @if (filteredCatalog().length === 0) {
-                <app-empty title="Ningún producto coincide" />
+              @if (isSearching()) {
+                @if (filteredCatalog().length === 0) {
+                  <app-empty title="Ningún producto coincide" />
+                } @else {
+                  <ul class="prod-list">
+                    @for (p of filteredCatalog(); track p.id) {
+                      <li>
+                        <button
+                          type="button"
+                          class="prod"
+                          [class.prod--out]="p.available <= 0"
+                          [class.prod--in]="p.inCart"
+                          [disabled]="p.available <= 0"
+                          (click)="addToCart(p)"
+                        >
+                          <span class="prod__name">{{ p.name }}</span>
+                          <span class="prod__meta">
+                            <span class="prod__price">{{ p.unitPrice | currency }}</span>
+                            <span
+                              class="prod__stock"
+                              [class.is-low]="p.available > 0 && p.available <= 5"
+                              [class.is-out]="p.available <= 0"
+                            >{{ p.available > 0 ? p.available + ' disp.' : 'Sin stock' }}</span>
+                          </span>
+                        </button>
+                      </li>
+                    }
+                  </ul>
+                }
+              } @else if (catalogGroups().length === 0) {
+                <app-empty title="Todavía no hay productos" />
               } @else {
-                <ul class="prod-list">
-                  @for (p of filteredCatalog(); track p.id) {
-                    <li>
-                      <button
-                        type="button"
-                        class="prod"
-                        [class.prod--out]="p.available <= 0"
-                        [class.prod--in]="p.inCart"
-                        [disabled]="p.available <= 0"
-                        (click)="addToCart(p)"
-                      >
-                        <span class="prod__name">{{ p.name }}</span>
-                        <span class="prod__meta">
-                          <span class="prod__price">{{ p.unitPrice | currency }}</span>
-                          <span
-                            class="prod__stock"
-                            [class.is-low]="p.available > 0 && p.available <= 5"
-                            [class.is-out]="p.available <= 0"
-                          >{{ p.available > 0 ? p.available + ' disp.' : 'Sin stock' }}</span>
-                        </span>
+                <ul class="cat-list">
+                  @for (group of catalogGroups(); track group.id) {
+                    <li class="cat-group" [class.is-open]="expandedCategoryId() === group.id">
+                      <button type="button" class="cat-group__head" (click)="toggleCategory(group.id)">
+                        <span class="cat-group__name">{{ group.name }}</span>
+                        <span class="cat-group__count">{{ group.products.length }}</span>
+                        <app-icon name="chevronDown" />
                       </button>
+                      @if (expandedCategoryId() === group.id) {
+                        <ul class="prod-list">
+                          @for (p of group.products; track p.id) {
+                            <li>
+                              <button
+                                type="button"
+                                class="prod"
+                                [class.prod--out]="p.available <= 0"
+                                [class.prod--in]="p.inCart"
+                                [disabled]="p.available <= 0"
+                                (click)="addToCart(p)"
+                              >
+                                <span class="prod__name">{{ p.name }}</span>
+                                <span class="prod__meta">
+                                  <span class="prod__price">{{ p.unitPrice | currency }}</span>
+                                  <span
+                                    class="prod__stock"
+                                    [class.is-low]="p.available > 0 && p.available <= 5"
+                                    [class.is-out]="p.available <= 0"
+                                  >{{ p.available > 0 ? p.available + ' disp.' : 'Sin stock' }}</span>
+                                </span>
+                              </button>
+                            </li>
+                          }
+                        </ul>
+                      }
                     </li>
                   }
                 </ul>
@@ -174,37 +216,38 @@
                     <div class="seg">
                       <button type="button" class="seg__btn" [class.is-active]="payMode() === 'full'" (click)="setPayMode('full')">Pago completo</button>
                       <button type="button" class="seg__btn" [class.is-active]="payMode() === 'custom'" (click)="setPayMode('custom')">Abono parcial</button>
-                      <button type="button" class="seg__btn" [class.is-active]="payMode() === 'none'" (click)="setPayMode('none')">Fiado</button>
                     </div>
                   </div>
 
-                  @if (payMode() !== 'none') {
-                    <div class="cobro__pay">
-                      <div class="field">
-                        <label for="s-method">Método</label>
-                        <select id="s-method" class="select" [value]="payMethod()" (change)="setMethod($any($event.target).value)">
-                          @for (m of methods; track m) {
-                            <option [value]="m">{{ methodLabel(m) }}</option>
-                          }
-                        </select>
-                      </div>
-                      @if (payMode() === 'custom') {
-                        <div class="field">
-                          <label for="s-amount">Monto pagado</label>
-                          <input
-                            id="s-amount"
-                            type="number"
-                            inputmode="numeric"
-                            min="0"
-                            step="500"
-                            class="input"
-                            [value]="customAmount()"
-                            (input)="onCustomAmount($any($event.target).value)"
-                          />
-                        </div>
-                      }
+                  <div class="cobro__pay">
+                    <div class="field">
+                      <label for="s-method">Método</label>
+                      <select id="s-method" class="select" [value]="payMethod()" (change)="setMethod($any($event.target).value)">
+                        @for (m of methods; track m) {
+                          <option [value]="m">{{ methodLabel(m) }}</option>
+                        }
+                      </select>
                     </div>
-                  }
+                    @if (payMode() === 'custom') {
+                      <div class="field">
+                        <label for="s-amount">Monto pagado</label>
+                        <input
+                          id="s-amount"
+                          type="number"
+                          inputmode="numeric"
+                          min="0"
+                          step="500"
+                          class="input"
+                          [class.is-invalid]="paymentInvalid()"
+                          [value]="customAmount()"
+                          (input)="onCustomAmount($any($event.target).value)"
+                        />
+                        @if (paymentInvalid()) {
+                          <span class="field-error">El abono debe ser mayor a 0.</span>
+                        }
+                      </div>
+                    }
+                  </div>
 
                   @if (customerRequired()) {
                     <div class="field">
@@ -294,9 +337,12 @@
           <span class="stat__value">{{ listTotals().cash | currency }}</span>
         </div>
         <div class="card stat">
-          <span class="stat__label">Transferencias</span>
+          <span class="stat__label">Transferencia</span>
           <span class="stat__value">{{ listTotals().transfer | currency }}</span>
-          <span class="stat__hint">Nequi + transferencia + tarjeta</span>
+        </div>
+        <div class="card stat">
+          <span class="stat__label">Tarjeta</span>
+          <span class="stat__value">{{ listTotals().card | currency }}</span>
         </div>
       </div>
     }
@@ -321,7 +367,7 @@
             } @else if (filteredSales().length === 0) {
               <app-empty title="Ninguna venta coincide con la búsqueda" />
             } @else {
-              <div class="table-wrap">
+              <div class="table-wrap table-wrap--scroll">
                 <table class="table sales-table">
                   <thead>
                     <tr>
@@ -404,7 +450,7 @@
                                   <div class="detail__pays">
                                     <span class="detail__lbl">Pago</span>
                                     @if (d.payments.length === 0) {
-                                      <span class="badge badge--danger">Sin pago (fiado)</span>
+                                      <span class="badge badge--danger">Sin pago registrado</span>
                                     } @else {
                                       @for (p of d.payments; track $index) {
                                         <span class="badge badge--neutral">{{ methodLabel(p.method) }} · {{ p.amount | currency }}</span>
@@ -534,37 +580,38 @@
           <div class="seg">
             <button type="button" class="seg__btn" [class.is-active]="editPayMode() === 'full'" (click)="editSetPayMode('full')">Pago completo</button>
             <button type="button" class="seg__btn" [class.is-active]="editPayMode() === 'custom'" (click)="editSetPayMode('custom')">Abono parcial</button>
-            <button type="button" class="seg__btn" [class.is-active]="editPayMode() === 'none'" (click)="editSetPayMode('none')">Fiado</button>
           </div>
         </div>
 
-        @if (editPayMode() !== 'none') {
-          <div class="cobro__pay">
-            <div class="field">
-              <label for="e-method">Método</label>
-              <select id="e-method" class="select" [value]="editPayMethod()" (change)="editSetMethod($any($event.target).value)">
-                @for (m of methods; track m) {
-                  <option [value]="m">{{ methodLabel(m) }}</option>
-                }
-              </select>
-            </div>
-            @if (editPayMode() === 'custom') {
-              <div class="field">
-                <label for="e-amount">Monto pagado</label>
-                <input
-                  id="e-amount"
-                  type="number"
-                  inputmode="numeric"
-                  min="0"
-                  step="500"
-                  class="input"
-                  [value]="editAmount()"
-                  (input)="editOnAmount($any($event.target).value)"
-                />
-              </div>
-            }
+        <div class="cobro__pay">
+          <div class="field">
+            <label for="e-method">Método</label>
+            <select id="e-method" class="select" [value]="editPayMethod()" (change)="editSetMethod($any($event.target).value)">
+              @for (m of methods; track m) {
+                <option [value]="m">{{ methodLabel(m) }}</option>
+              }
+            </select>
           </div>
-        }
+          @if (editPayMode() === 'custom') {
+            <div class="field">
+              <label for="e-amount">Monto pagado</label>
+              <input
+                id="e-amount"
+                type="number"
+                inputmode="numeric"
+                min="0"
+                step="500"
+                class="input"
+                [class.is-invalid]="editPaymentInvalid()"
+                [value]="editAmount()"
+                (input)="editOnAmount($any($event.target).value)"
+              />
+              @if (editPaymentInvalid()) {
+                <span class="field-error">El abono debe ser mayor a 0.</span>
+              }
+            </div>
+          }
+        </div>
 
         <div class="field">
           <label for="e-customer">

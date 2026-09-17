@@ -1,14 +1,18 @@
 import { Injectable, inject } from '@angular/core';
 import { Supabase } from './supabase';
 import type {
+  AbonoRow,
+  AddPaymentInput,
+  AddPaymentResult,
   CreateSaleInput,
   CreateSaleResult,
+  PaymentStatus,
+  PendingSaleRow,
   RecentSale,
   SaleDetail,
   SaleListRow,
   SalesRange,
   SalesSummary,
-  SaleStatus,
   UpdateSaleInput
 } from '../models/sale';
 import type { PaymentMethod } from '../models/payment';
@@ -17,22 +21,22 @@ import type { PaymentMethod } from '../models/payment';
  * Acceso a las ventas.
  *
  * LECTURA: consultas normales. El alcance lo decide la RLS de Supabase:
- *   - employee -> solo sus ventas
+ *   - employee -> solo sus ventas (de hoy)
  *   - admin    -> todas
  * Este servicio no filtra por empleado; confía en la política.
  *
  * ESCRITURA: registrar una venta NUNCA se hace con inserts sueltos desde
  * Angular. `create()` llama a la RPC `create_sale`, que en UNA transacción:
- * crea la venta + los `sale_items` (con copia del precio) + el pago inicial +
+ * crea la venta + los `sale_items` (con copia del precio) + el pago +
  * descuenta `inventory` + deja los `inventory_movements` + suma el pendiente a
- * la cuenta del cliente. Si algo falla, rollback completo.
+ * la cuenta del cliente. Si algo falla, rollback completo. Ya no existe la
+ * venta "fiada": el pago siempre debe ser > 0.
  *
- * Columnas (ver también core/models/sale.ts):
+ * Columnas reales (ver también core/models/sale.ts):
  *   sales:    id (uuid), invoice_number, user_id (uuid, empleado), customer_id,
- *             subtotal, discount, total, status (enum sale_status), created_at
- *   payments: sale_id (uuid), method, amount
+ *             subtotal, discount, total, status ('completed'|'cancelled'), created_at
+ *   payments: sale_id (uuid), payment_method ('cash'|'transfer'|'card'), amount
  *   nombre del empleado/cliente -> profiles.name / customers.name
- * Si tu esquema usa otros nombres, cámbialos SOLO aquí.
  */
 @Injectable({ providedIn: 'root' })
 export class Sales {
@@ -57,43 +61,19 @@ export class Sales {
         unit_price: Number(i.unit_price)
       }));
 
-    const hasPayment = !!input.payment && Number(input.payment.amount) > 0;
-
     const { data, error } = await this.db.rpc('create_sale', {
       p_customer_id: input.customerId ? Number(input.customerId) : null,
       p_discount: Math.max(0, Math.round(Number(input.discount) || 0)),
       p_items: items,
-      p_method: hasPayment ? input.payment!.method : null,
-      p_amount: hasPayment ? Math.round(Number(input.payment!.amount)) : 0
+      p_method: input.payment.method,
+      p_amount: Math.round(Number(input.payment.amount))
     });
 
     if (error) {
       throw error;
     }
 
-    const r = (data ?? {}) as {
-      sale_id?: string;
-      invoice_number?: number | null;
-      subtotal?: number;
-      discount?: number;
-      total?: number;
-      paid?: number;
-      pending?: number;
-      status?: SaleStatus;
-    };
-    const total = Number(r.total ?? 0);
-    const paid = Number(r.paid ?? 0);
-    const pending = Number(r.pending ?? Math.max(0, total - paid));
-    return {
-      saleId: String(r.sale_id ?? ''),
-      invoiceNumber: r.invoice_number ?? null,
-      subtotal: Number(r.subtotal ?? 0),
-      discount: Number(r.discount ?? 0),
-      total,
-      paid,
-      pending,
-      status: r.status ?? deriveStatus(total, paid)
-    };
+    return toCreateSaleResult(data, '');
   }
 
   /**
@@ -103,7 +83,7 @@ export class Sales {
   async list(range: SalesRange = 'week', search = ''): Promise<SaleListRow[]> {
     let query = this.db
       .from('sales')
-      .select('id, invoice_number, subtotal, discount, total, status, customer_id, user_id, created_at')
+      .select('id, invoice_number, subtotal, discount, total, customer_id, user_id, created_at')
       .order('created_at', { ascending: false })
       .limit(500);
 
@@ -119,7 +99,6 @@ export class Sales {
         subtotal: number | null;
         discount: number | null;
         total: number | null;
-        status: SaleStatus | null;
         customer_id: number | null;
         user_id: string | null;
         created_at: string;
@@ -146,8 +125,8 @@ export class Sales {
     return rows
       .map((r) => {
         const total = r.total ?? 0;
-        const bucket = paidByMethod.get(r.id) ?? { cash: 0, transfer: 0 };
-        const paid = bucket.cash + bucket.transfer;
+        const bucket = paidByMethod.get(r.id) ?? { cash: 0, transfer: 0, card: 0 };
+        const paid = bucket.cash + bucket.transfer + bucket.card;
         return {
           id: r.id,
           invoiceNumber: r.invoice_number,
@@ -156,9 +135,10 @@ export class Sales {
           total,
           paidCash: bucket.cash,
           paidTransfer: bucket.transfer,
+          paidCard: bucket.card,
           paid,
           pending: Math.max(0, total - paid),
-          status: r.status ?? deriveStatus(total, paid),
+          status: derivePaymentStatus(total, paid),
           customerId: r.customer_id,
           createdAt: r.created_at,
           employeeName: r.user_id ? employees.get(r.user_id) ?? null : null,
@@ -206,9 +186,9 @@ export class Sales {
         >(),
       this.db
         .from('payments')
-        .select('method, amount')
+        .select('payment_method, amount')
         .eq('sale_id', saleId)
-        .returns<{ method: PaymentMethod; amount: number | null }[]>()
+        .returns<{ payment_method: PaymentMethod; amount: number | null }[]>()
     ]);
 
     if (sale.error) throw sale.error;
@@ -230,7 +210,7 @@ export class Sales {
         subtotal: r.subtotal ?? (r.unit_price ?? 0) * (r.quantity ?? 0)
       })),
       payments: (payments.data ?? []).map((p) => ({
-        method: p.method,
+        method: p.payment_method,
         amount: p.amount ?? 0
       }))
     };
@@ -249,15 +229,85 @@ export class Sales {
         quantity: Math.trunc(Number(i.quantity))
       }));
 
-    const hasPayment = !!input.payment && Number(input.payment.amount) > 0;
-
     const { data, error } = await this.db.rpc('update_sale', {
       p_sale_id: input.saleId,
       p_customer_id: input.customerId ? Number(input.customerId) : null,
       p_discount: Math.max(0, Math.round(Number(input.discount) || 0)),
       p_items: items,
-      p_method: hasPayment ? input.payment!.method : null,
-      p_amount: hasPayment ? Math.round(Number(input.payment!.amount)) : 0
+      p_method: input.payment.method,
+      p_amount: Math.round(Number(input.payment.amount))
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    return toCreateSaleResult(data, input.saleId);
+  }
+
+  /**
+   * Mis ventas (el empleado autenticado) que todavía tienen saldo pendiente,
+   * sin importar cuándo se registraron. Base de la pantalla "Abonar".
+   */
+  async myPending(userId: string): Promise<PendingSaleRow[]> {
+    const { data, error } = await this.db
+      .from('sales')
+      .select('id, invoice_number, customer_id, total, created_at')
+      .eq('user_id', userId)
+      .not('customer_id', 'is', null)
+      .order('created_at', { ascending: false })
+      .returns<
+        {
+          id: string;
+          invoice_number: number | null;
+          customer_id: number | null;
+          total: number | null;
+          created_at: string;
+        }[]
+      >();
+
+    if (error) {
+      throw error;
+    }
+
+    const rows = data ?? [];
+    if (rows.length === 0) {
+      return [];
+    }
+
+    const [customers, paidBySale] = await Promise.all([
+      this.namesFrom('customers', unique(rows.map((r) => r.customer_id))),
+      this.paidBySale(rows.map((r) => r.id))
+    ]);
+
+    return rows
+      .map((r) => {
+        const total = r.total ?? 0;
+        const paid = paidBySale.get(r.id) ?? 0;
+        return {
+          id: r.id,
+          invoiceNumber: r.invoice_number,
+          total,
+          paid,
+          pending: Math.max(0, total - paid),
+          customerId: r.customer_id as number,
+          customerName: r.customer_id ? customers.get(r.customer_id) ?? null : null,
+          createdAt: r.created_at
+        } satisfies PendingSaleRow;
+      })
+      .filter((r) => r.pending > 0);
+  }
+
+  /**
+   * Abona a una venta (propia, o cualquiera si admin) vía RPC transaccional:
+   * guarda el pago y descuenta `customers.cuenta`. No puede exceder el
+   * pendiente de esa venta.
+   */
+  async addPayment(input: AddPaymentInput): Promise<AddPaymentResult> {
+    const { data, error } = await this.db.rpc('add_payment', {
+      p_sale_id: input.saleId,
+      p_method: input.method,
+      p_amount: Math.round(Number(input.amount))
     });
 
     if (error) {
@@ -266,26 +316,116 @@ export class Sales {
 
     const r = (data ?? {}) as {
       sale_id?: string;
-      invoice_number?: number | null;
-      subtotal?: number;
-      discount?: number;
-      total?: number;
-      paid?: number;
+      paid_now?: number;
+      total_paid?: number;
       pending?: number;
-      status?: SaleStatus;
     };
-    const total = Number(r.total ?? 0);
-    const paid = Number(r.paid ?? 0);
     return {
       saleId: String(r.sale_id ?? input.saleId),
-      invoiceNumber: r.invoice_number ?? null,
-      subtotal: Number(r.subtotal ?? 0),
-      discount: Number(r.discount ?? 0),
-      total,
-      paid,
-      pending: Number(r.pending ?? Math.max(0, total - paid)),
-      status: r.status ?? deriveStatus(total, paid)
+      paidNow: Number(r.paid_now ?? 0),
+      totalPaid: Number(r.total_paid ?? 0),
+      pending: Number(r.pending ?? 0)
     };
+  }
+
+  /**
+   * Historial de abonos (admin): pagos que NO fueron el primero de su venta
+   * (el primero se registra al crear la venta; los siguientes son abonos
+   * posteriores vía `addPayment`). `range` filtra por la fecha del ABONO,
+   * no de la venta original.
+   */
+  async abonosHistory(range: SalesRange = 'week', search = ''): Promise<AbonoRow[]> {
+    let query = this.db
+      .from('payments')
+      .select('id, sale_id, payment_method, amount, created_at')
+      .order('created_at', { ascending: false })
+      .limit(500);
+
+    const from = rangeStartIso(range);
+    if (from) {
+      query = query.gte('created_at', from);
+    }
+
+    const { data, error } = await query.returns<
+      { id: number; sale_id: string; payment_method: PaymentMethod; amount: number | null; created_at: string }[]
+    >();
+    if (error) {
+      throw error;
+    }
+
+    const candidates = data ?? [];
+    if (candidates.length === 0) {
+      return [];
+    }
+
+    const saleIds = unique(candidates.map((c) => c.sale_id));
+
+    // El primer pago (id más chico) de cada venta es el pago inicial, no un
+    // abono. Se busca en TODO el historial de esa venta, no solo en `range`.
+    const { data: allPays, error: allErr } = await this.db
+      .from('payments')
+      .select('id, sale_id')
+      .in('sale_id', saleIds)
+      .returns<{ id: number; sale_id: string }[]>();
+    if (allErr) {
+      throw allErr;
+    }
+
+    const firstIdBySale = new Map<string, number>();
+    for (const p of allPays ?? []) {
+      const current = firstIdBySale.get(p.sale_id);
+      if (current === undefined || p.id < current) {
+        firstIdBySale.set(p.sale_id, p.id);
+      }
+    }
+
+    const abonos = candidates.filter((c) => firstIdBySale.get(c.sale_id) !== c.id);
+    if (abonos.length === 0) {
+      return [];
+    }
+
+    const abonoSaleIds = unique(abonos.map((c) => c.sale_id));
+    const { data: sales, error: salesErr } = await this.db
+      .from('sales')
+      .select('id, invoice_number, customer_id, user_id')
+      .in('id', abonoSaleIds)
+      .returns<{ id: string; invoice_number: number | null; customer_id: number | null; user_id: string | null }[]>();
+    if (salesErr) {
+      throw salesErr;
+    }
+
+    const saleById = new Map((sales ?? []).map((s) => [s.id, s]));
+    const [employees, customers] = await Promise.all([
+      this.namesFrom('profiles', unique((sales ?? []).map((s) => s.user_id))),
+      this.namesFrom('customers', unique((sales ?? []).map((s) => s.customer_id)))
+    ]);
+
+    const term = search.trim().toLowerCase();
+
+    return abonos
+      .map((c) => {
+        const s = saleById.get(c.sale_id);
+        return {
+          paymentId: c.id,
+          saleId: c.sale_id,
+          invoiceNumber: s?.invoice_number ?? null,
+          customerName: s?.customer_id ? customers.get(s.customer_id) ?? null : null,
+          employeeName: s?.user_id ? employees.get(s.user_id) ?? null : null,
+          method: c.payment_method,
+          amount: c.amount ?? 0,
+          createdAt: c.created_at
+        } satisfies AbonoRow;
+      })
+      .filter((row) => {
+        if (!term) {
+          return true;
+        }
+        return (
+          String(row.invoiceNumber ?? '').includes(term) ||
+          (row.customerName ?? '').toLowerCase().includes(term) ||
+          (row.employeeName ?? '').toLowerCase().includes(term)
+        );
+      });
   }
 
   /** Suma y cantidad de ventas creadas desde `fromIso` (ISO 8601). */
@@ -343,7 +483,7 @@ export class Sales {
   async recent(limit = 8): Promise<RecentSale[]> {
     const { data, error } = await this.db
       .from('sales')
-      .select('id, invoice_number, total, status, customer_id, user_id, created_at')
+      .select('id, invoice_number, total, customer_id, user_id, created_at')
       .order('created_at', { ascending: false })
       .limit(limit)
       .returns<
@@ -351,7 +491,6 @@ export class Sales {
           id: string;
           invoice_number: number | null;
           total: number | null;
-          status: SaleStatus | null;
           customer_id: number | null;
           user_id: string | null;
           created_at: string;
@@ -382,7 +521,7 @@ export class Sales {
         id: r.id,
         invoiceNumber: r.invoice_number,
         total: r.total ?? 0,
-        status: r.status ?? deriveStatus(r.total ?? 0, paid),
+        status: derivePaymentStatus(r.total ?? 0, paid),
         createdAt: r.created_at,
         employeeName: r.user_id ? employees.get(r.user_id) ?? null : null,
         customerName: r.customer_id ? customers.get(r.customer_id) ?? null : null
@@ -414,31 +553,33 @@ export class Sales {
   }
 
   /**
-   * Pagado por venta, separado en efectivo ('cash') y "transferencias"
-   * (nequi + transferencia + tarjeta). Para el resumen del listado.
+   * Pagado por venta, separado por método ('cash' | 'transfer' | 'card').
+   * Para el resumen del listado y, más adelante, reportes de caja.
    */
   private async paidByMethod(
     saleIds: string[]
-  ): Promise<Map<string, { cash: number; transfer: number }>> {
-    const result = new Map<string, { cash: number; transfer: number }>();
+  ): Promise<Map<string, { cash: number; transfer: number; card: number }>> {
+    const result = new Map<string, { cash: number; transfer: number; card: number }>();
     if (saleIds.length === 0) {
       return result;
     }
 
     const { data, error } = await this.db
       .from('payments')
-      .select('sale_id, method, amount')
+      .select('sale_id, payment_method, amount')
       .in('sale_id', saleIds)
-      .returns<{ sale_id: string; method: PaymentMethod; amount: number | null }[]>();
+      .returns<{ sale_id: string; payment_method: PaymentMethod; amount: number | null }[]>();
 
     if (error) {
       throw error;
     }
 
     for (const p of data ?? []) {
-      const bucket = result.get(p.sale_id) ?? { cash: 0, transfer: 0 };
-      if (p.method === 'cash') {
+      const bucket = result.get(p.sale_id) ?? { cash: 0, transfer: 0, card: 0 };
+      if (p.payment_method === 'cash') {
         bucket.cash += p.amount ?? 0;
+      } else if (p.payment_method === 'card') {
+        bucket.card += p.amount ?? 0;
       } else {
         bucket.transfer += p.amount ?? 0;
       }
@@ -498,12 +639,32 @@ function rangeStartIso(range: SalesRange): string | null {
   }
 }
 
-function deriveStatus(total: number, paid: number): SaleStatus {
-  if (paid <= 0) {
-    return 'pending';
-  }
-  if (paid + 0.01 >= total) {
-    return 'paid';
-  }
-  return 'partial';
+/** Estado de cobro calculado (nunca leído de `sales.status`, que es completed/cancelled). */
+function derivePaymentStatus(total: number, paid: number): PaymentStatus {
+  return paid + 0.01 >= total ? 'paid' : 'partial';
+}
+
+function toCreateSaleResult(data: unknown, fallbackId: string): CreateSaleResult {
+  const r = (data ?? {}) as {
+    sale_id?: string;
+    invoice_number?: number | null;
+    subtotal?: number;
+    discount?: number;
+    total?: number;
+    paid?: number;
+    pending?: number;
+  };
+  const total = Number(r.total ?? 0);
+  const paid = Number(r.paid ?? 0);
+  const pending = Number(r.pending ?? Math.max(0, total - paid));
+  return {
+    saleId: String(r.sale_id ?? fallbackId),
+    invoiceNumber: r.invoice_number ?? null,
+    subtotal: Number(r.subtotal ?? 0),
+    discount: Number(r.discount ?? 0),
+    total,
+    paid,
+    pending,
+    status: derivePaymentStatus(total, paid)
+  };
 }

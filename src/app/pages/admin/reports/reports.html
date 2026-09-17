@@ -1,1 +1,265 @@
-<p>reports works!</p>
+<div class="page">
+
+  <div class="page__head">
+    <div>
+      <h1 class="page__title">Reportes</h1>
+      <span class="page__subtitle">Resumen de ventas · {{ rangeLabel() }}</span>
+    </div>
+    <div class="actions no-print">
+      <button type="button" class="btn btn-ghost" (click)="exportCsv()" [disabled]="!summary()">
+        Exportar Excel
+      </button>
+      <button type="button" class="btn btn-ghost" (click)="exportPdf()" [disabled]="!summary()">
+        Exportar PDF
+      </button>
+    </div>
+  </div>
+
+  <!-- Solo aparece al imprimir / exportar a PDF -->
+  <div class="print-header">
+    <strong>Portón Rojo</strong> · Reporte de ventas · {{ rangeLabel() }}
+  </div>
+
+  <div class="toolbar no-print">
+    <div class="seg">
+      <button type="button" class="seg__btn" [class.is-active]="preset() === 'week'" (click)="setPreset('week')">7 días</button>
+      <button type="button" class="seg__btn" [class.is-active]="preset() === 'month'" (click)="setPreset('month')">30 días</button>
+      <button type="button" class="seg__btn" [class.is-active]="preset() === 'quarter'" (click)="setPreset('quarter')">90 días</button>
+      <button type="button" class="seg__btn" [class.is-active]="preset() === 'year'" (click)="setPreset('year')">Año</button>
+      <button type="button" class="seg__btn" [class.is-active]="preset() === 'custom'" (click)="setPreset('custom')">Personalizado</button>
+    </div>
+    <div class="seg">
+      <button type="button" class="seg__btn" [class.is-active]="groupBy() === 'day'" (click)="setGroupBy('day')">Por día</button>
+      <button type="button" class="seg__btn" [class.is-active]="groupBy() === 'month'" (click)="setGroupBy('month')">Por mes</button>
+    </div>
+  </div>
+
+  @if (preset() === 'custom') {
+    <div class="toolbar no-print">
+      <div class="field field--inline">
+        <label for="r-from">Desde</label>
+        <input id="r-from" type="date" class="input" [value]="customFrom()" (change)="customFrom.set($any($event.target).value)" />
+      </div>
+      <div class="field field--inline">
+        <label for="r-to">Hasta</label>
+        <input id="r-to" type="date" class="input" [value]="customTo()" (change)="customTo.set($any($event.target).value)" />
+      </div>
+      <button type="button" class="btn btn-primary btn-sm" (click)="applyCustomRange()">Aplicar</button>
+    </div>
+  }
+
+  @switch (state()) {
+    @case ('loading') {
+      <div class="card"><app-loading message="Calculando reporte…" /></div>
+    }
+    @case ('error') {
+      <div class="alert alert-danger">
+        No fue posible calcular el reporte.
+        <button type="button" class="link-btn" (click)="load()">Reintentar</button>
+      </div>
+    }
+    @default {
+      @if (summary(); as s) {
+        @if (s.count === 0) {
+          <app-empty title="No hay ventas en este periodo" />
+        } @else {
+
+          <div class="stats">
+            <div class="card stat stat--accent">
+              <span class="stat__label">Total vendido</span>
+              <span class="stat__value">{{ s.total | currency }}</span>
+            </div>
+            <div class="card stat">
+              <span class="stat__label">Ventas</span>
+              <span class="stat__value">{{ s.count }}</span>
+            </div>
+            <div class="card stat">
+              <span class="stat__label">Ticket promedio</span>
+              <span class="stat__value">{{ s.avgTicket | currency }}</span>
+            </div>
+            <div class="card stat" [class.stat--warn]="s.pending > 0">
+              <span class="stat__label">Pendiente del periodo</span>
+              <span class="stat__value">{{ s.pending | currency }}</span>
+            </div>
+            <div class="card stat">
+              <span class="stat__label">Abonos ({{ s.abonosCount }})</span>
+              <span class="stat__value">{{ s.abonos | currency }}</span>
+            </div>
+            <div class="card stat" [class.stat--warn]="s.outstandingNow > 0">
+              <span class="stat__label">Deuda total de clientes (hoy)</span>
+              <span class="stat__value">{{ s.outstandingNow | currency }}</span>
+            </div>
+            @if (s.bestPeriod; as best) {
+              <div class="card stat stat--accent">
+                <span class="stat__label">{{ bestPeriodLabel() }}</span>
+                <span class="stat__value">{{ best.label }}</span>
+                <span class="stat__hint">{{ best.total | currency }}</span>
+              </div>
+            }
+          </div>
+
+          <div class="charts-grid no-print">
+            <section class="card panel">
+              <div class="panel__head">
+                <span class="panel__title">Ventas por {{ groupBy() === 'day' ? 'día' : 'mes' }}</span>
+              </div>
+              <div class="panel__body panel__body--pad">
+                <div class="bars">
+                  @for (p of s.byPeriod; track p.key) {
+                    <div class="bars__col" [title]="p.label + ': ' + (p.total | currency) + ' · ' + p.count + ' ventas'">
+                      <div class="bars__track">
+                        <div
+                          class="bars__fill"
+                          [class.bars__fill--best]="s.bestPeriod?.key === p.key"
+                          [style.height.%]="barHeightPct(p.total)"
+                        ></div>
+                      </div>
+                      <span class="bars__label">{{ p.label }}</span>
+                    </div>
+                  }
+                </div>
+              </div>
+            </section>
+
+            <section class="card panel">
+              <div class="panel__head">
+                <span class="panel__title">Por método de pago</span>
+              </div>
+              <div class="panel__body panel__body--pad">
+                <div class="method">
+                  <div class="method__row">
+                    <span class="method__label">Efectivo</span>
+                    <div class="method__track"><div class="method__fill" [style.width.%]="methodPct(s.byMethod.cash)"></div></div>
+                    <span class="method__value">{{ s.byMethod.cash | currency }}</span>
+                  </div>
+                  <div class="method__row">
+                    <span class="method__label">Transferencia</span>
+                    <div class="method__track"><div class="method__fill" [style.width.%]="methodPct(s.byMethod.transfer)"></div></div>
+                    <span class="method__value">{{ s.byMethod.transfer | currency }}</span>
+                  </div>
+                  <div class="method__row">
+                    <span class="method__label">Tarjeta</span>
+                    <div class="method__track"><div class="method__fill" [style.width.%]="methodPct(s.byMethod.card)"></div></div>
+                    <span class="method__value">{{ s.byMethod.card | currency }}</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div class="charts-grid no-print">
+            <section class="card panel">
+              <div class="panel__head">
+                <span class="panel__title">Productos más vendidos</span>
+              </div>
+              <div class="panel__body">
+                @if (s.topProducts.length === 0) {
+                  <app-empty title="Sin datos de productos" />
+                } @else {
+                  <div class="table-wrap table-wrap--scroll-3">
+                    <table class="table table--narrow">
+                      <thead>
+                        <tr>
+                          <th>Producto</th>
+                          <th class="num">Cantidad</th>
+                          <th class="num">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (p of s.topProducts; track p.productId) {
+                          <tr>
+                            <td>{{ p.name }}</td>
+                            <td class="num">{{ p.quantity }}</td>
+                            <td class="num">{{ p.total | currency }}</td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                }
+              </div>
+            </section>
+
+            <section class="card panel">
+              <div class="panel__head">
+                <span class="panel__title">Ventas por empleado</span>
+              </div>
+              <div class="panel__body">
+                @if (s.byEmployee.length === 0) {
+                  <app-empty title="Sin datos de empleados" />
+                } @else {
+                  <div class="table-wrap table-wrap--scroll-2">
+                    <table class="table table--narrow">
+                      <thead>
+                        <tr>
+                          <th>Empleado</th>
+                          <th class="num">N.º ventas</th>
+                          <th class="num">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (e of s.byEmployee; track e.employeeId) {
+                          <tr>
+                            <td>{{ e.name }}</td>
+                            <td class="num">{{ e.count }}</td>
+                            <td class="num">{{ e.total | currency }}</td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                }
+              </div>
+            </section>
+          </div>
+
+          <!-- Detalle de ventas: la base del recibo exportado (PDF/CSV). Se
+               ve siempre (pantalla e impresión), con scroll de ~8 filas en
+               pantalla; al imprimir se ven todas. -->
+          <section class="card panel">
+            <div class="panel__head">
+              <span class="panel__title">Detalle de ventas del periodo</span>
+              <span class="badge badge--neutral">{{ s.detail.length }} líneas</span>
+            </div>
+            <div class="panel__body">
+              @if (s.detail.length === 0) {
+                <app-empty title="Sin líneas de venta en este periodo" />
+              } @else {
+                <div class="table-wrap table-wrap--scroll">
+                  <table class="table">
+                    <thead>
+                      <tr>
+                        <th class="col-tight">Fecha</th>
+                        <th class="col-tight">Venta</th>
+                        <th>Producto</th>
+                        <th class="num">Cantidad</th>
+                        <th class="num">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (d of s.detail; track d.saleId + '-' + d.productName) {
+                        <tr>
+                          <td class="col-tight">{{ d.createdAt | date:'dd/MM/yy HH:mm' }}</td>
+                          <td class="col-tight">{{ d.invoiceNumber ? '#' + d.invoiceNumber : '—' }}</td>
+                          <td>{{ d.productName }}</td>
+                          <td class="num">{{ d.quantity }}</td>
+                          <td class="num">{{ d.total | currency }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <td colspan="4">Ventas totales del periodo</td>
+                        <td class="num">{{ s.total | currency }}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              }
+            </div>
+          </section>
+        }
+      }
+    }
+  }
+</div>

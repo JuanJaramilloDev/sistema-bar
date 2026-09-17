@@ -5,14 +5,16 @@ export type UserRole = 'admin' | 'employee';
 
 /**
  * Fila de la tabla `profiles` de Supabase.
- *   id (uuid, = auth.users.id), name, email, role, active, created_at
+ *   id (uuid, = auth.users.id), name, email, role, created_at
+ * No existe columna `active`: la tabla no soporta desactivar un usuario, solo
+ * cambiar su nombre. Para bloquear el acceso de un empleado hay que borrar
+ * su usuario en Supabase Auth (Authentication > Users) o cambiar su contraseña.
  */
 export interface Profile {
   id: string;
   email: string | null;
   name: string | null;
   role: UserRole;
-  active: boolean;
   created_at: string;
 }
 

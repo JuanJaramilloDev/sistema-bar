@@ -1,0 +1,29 @@
+:host {
+  display: block;
+}
+
+/* Segmento de rango de fechas (mismo estilo que Ventas) */
+.seg {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  flex-wrap: wrap;
+}
+.seg__btn {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.seg__btn.is-active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-1);
+}

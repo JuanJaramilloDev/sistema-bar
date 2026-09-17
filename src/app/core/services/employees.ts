@@ -5,11 +5,12 @@ import type { NewEmployee, Profile } from '../models/user';
 /**
  * Gestión de empleados = filas de `profiles`.
  *
- * - Listar / renombrar / activar-desactivar: consultas normales sobre `profiles`
- *   (la RLS de Supabase permite al admin ver y editar `name`/`active`).
- * - Crear un usuario employee: NO se puede desde Angular (requiere service_role).
- *   Se delega en la Edge Function `create-employee`, que verifica que quien
- *   llama es admin y crea el usuario en Supabase Auth + su perfil.
+ * - Listar / renombrar: consultas normales sobre `profiles` (la RLS de
+ *   Supabase permite al admin ver todos los perfiles y editar `name`).
+ * - Crear un usuario employee, o cambiarle la contraseña: NO se puede desde
+ *   Angular (requiere service_role). Se delega en las Edge Functions
+ *   `create-employee` y `reset-employee-password`, que verifican que quien
+ *   llama es admin.
  *
  * SEGURIDAD: Angular nunca cambia `role` ni `id`. Esas columnas están revocadas
  * para `authenticated` en Supabase; un cambio de rol necesitaría una función
@@ -28,7 +29,7 @@ export class Employees {
   async list(): Promise<Profile[]> {
     const { data, error } = await this.db
       .from('profiles')
-      .select('id, name, email, role, active, created_at')
+      .select('id, name, email, role, created_at')
       .order('name', { ascending: true })
       .returns<Profile[]>();
 
@@ -71,14 +72,18 @@ export class Employees {
     }
   }
 
-  async setActive(id: string, active: boolean): Promise<void> {
-    const { error } = await this.db
-      .from('profiles')
-      .update({ active })
-      .eq('id', id);
+  /** Cambia la contraseña de un usuario vía Edge Function. Solo admin. */
+  async resetPassword(id: string, password: string): Promise<void> {
+    const { data, error } = await this.db.functions.invoke<{ ok: boolean }>(
+      'reset-employee-password',
+      { body: { userId: id, password } }
+    );
 
     if (error) {
-      throw error;
+      throw await toEmployeeError(error);
+    }
+    if (!data?.ok) {
+      throw new EmployeeError('UNEXPECTED');
     }
   }
 }

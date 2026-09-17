@@ -42,3 +42,7 @@ __screenshots__/
 # System files
 .DS_Store
 Thumbs.db
+
+# Supabase (SQL de configuración/Edge Functions): se maneja manualmente en el
+# Dashboard de Supabase, no se sube al repositorio.
+/supabase

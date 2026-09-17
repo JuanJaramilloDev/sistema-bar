@@ -27,9 +27,13 @@ type ViewState = 'loading' | 'ready' | 'error';
 type Notice = { text: string; kind: 'ok' | 'err' };
 
 /**
- * Gestión de empleados (solo admin). Crear un usuario employee va por la Edge
- * Function `create-employee`; renombrar / activar-desactivar son updates a
- * `profiles` que la RLS solo permite al admin. Angular nunca cambia el rol.
+ * Gestión de empleados (solo admin). Crear un usuario o cambiarle la
+ * contraseña van por Edge Functions (`create-employee` /
+ * `reset-employee-password`, verifican admin del lado del servidor);
+ * renombrar es un update a `profiles` que la RLS solo permite al admin.
+ * Angular nunca cambia el rol. No existe una forma de "desactivar" un
+ * empleado (la tabla no tiene esa columna): para bloquearlo hay que
+ * borrarlo desde Supabase Auth o cambiarle la contraseña aquí mismo.
  */
 @Component({
   selector: 'app-admin-employees',
@@ -80,8 +84,13 @@ export class Employees {
     password: this.fb.control('')
   });
 
-  // --- fila ocupada (activar/desactivar) ---
-  readonly busyId = signal<string | null>(null);
+  // --- cambiar contraseña (solo admin) ---
+  readonly passwordTarget = signal<Profile | null>(null);
+  readonly passwordSaving = signal(false);
+  readonly passwordError = signal('');
+  readonly passwordForm = this.fb.group({
+    password: this.fb.control('', [Validators.required, Validators.minLength(6)])
+  });
 
   constructor() {
     void this.load();
@@ -166,25 +175,38 @@ export class Employees {
     }
   }
 
-  async toggleActive(profile: Profile): Promise<void> {
-    this.busyId.set(profile.id);
+  openResetPassword(profile: Profile): void {
+    this.passwordTarget.set(profile);
+    this.passwordError.set('');
+    this.passwordForm.reset({ password: '' });
+    this.passwordForm.controls.password.updateValueAndValidity();
+  }
+
+  closeResetPassword(): void {
+    if (!this.passwordSaving()) {
+      this.passwordTarget.set(null);
+    }
+  }
+
+  async submitResetPassword(): Promise<void> {
+    this.passwordError.set('');
+    const target = this.passwordTarget();
+    if (!target || this.passwordForm.invalid || this.passwordSaving()) {
+      this.passwordForm.markAllAsTouched();
+      return;
+    }
+
+    const { password } = this.passwordForm.getRawValue();
+    this.passwordSaving.set(true);
     try {
-      await this.api.setActive(profile.id, !profile.active);
-      this.all.update((list) =>
-        list.map((p) => (p.id === profile.id ? { ...p, active: !p.active } : p))
-      );
-      this.flash(
-        profile.active ? 'Empleado desactivado.' : 'Empleado activado.',
-        'ok'
-      );
+      await this.api.resetPassword(target.id, password);
+      this.passwordTarget.set(null);
+      this.flash(`Contraseña de ${target.name ?? 'el empleado'} actualizada.`, 'ok');
     } catch (err) {
-      console.error('[empleados] estado:', err);
-      this.flash(
-        humanizeDbError(err as DbError, 'No fue posible cambiar el estado.'),
-        'err'
-      );
+      console.error('[empleados] cambiar contraseña:', err);
+      this.passwordError.set(this.friendlyError(err));
     } finally {
-      this.busyId.set(null);
+      this.passwordSaving.set(false);
     }
   }
 
@@ -213,6 +235,10 @@ export class Employees {
           return 'Ya existe un usuario con ese correo.';
         case 'PROFILE_FAILED':
           return 'El usuario se creó pero su perfil falló. Revísalo en Supabase.';
+        case 'USER_NOT_FOUND':
+          return 'Ese usuario ya no existe.';
+        case 'UPDATE_FAILED':
+          return 'No fue posible cambiar la contraseña. Inténtalo de nuevo.';
         default:
           return 'No fue posible crear el empleado. Inténtalo de nuevo.';
       }

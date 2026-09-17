@@ -12,7 +12,7 @@ import { Inventory } from '../../../core/services/inventory';
 import { CurrencyPipe } from '../../../shared/pipes/currency-pipe';
 import { Loading } from '../../../shared/components/loading/loading';
 import { Empty } from '../../../shared/components/empty/empty';
-import type { RecentSale, SaleStatus } from '../../../core/models/sale';
+import type { PaymentStatus, RecentSale } from '../../../core/models/sale';
 import type { InventoryItem, StockStatus } from '../../../core/models/inventory';
 
 type LoadState = 'loading' | 'ready' | 'error';
@@ -88,7 +88,7 @@ export class Dashboard {
   private async loadRecent(): Promise<void> {
     this.recentState.set('loading');
     try {
-      this.recent.set(await this.sales.recent(6));
+      this.recent.set(await this.sales.recent(5));
       this.recentState.set('ready');
     } catch (err) {
       console.error('[dashboard-employee] ventas recientes:', err);
@@ -107,11 +107,11 @@ export class Dashboard {
     }
   }
 
-  protected statusLabel(s: SaleStatus): string {
-    return s === 'paid' ? 'Pagada' : s === 'partial' ? 'Parcial' : 'Pendiente';
+  protected statusLabel(s: PaymentStatus): string {
+    return s === 'paid' ? 'Pagada' : 'Abono parcial';
   }
-  protected statusClass(s: SaleStatus): string {
-    return s === 'paid' ? 'badge--success' : s === 'partial' ? 'badge--warn' : 'badge--danger';
+  protected statusClass(s: PaymentStatus): string {
+    return s === 'paid' ? 'badge--success' : 'badge--warn';
   }
   protected stockLabel(s: StockStatus): string {
     return s === 'out' ? 'Agotado' : 'Bajo';

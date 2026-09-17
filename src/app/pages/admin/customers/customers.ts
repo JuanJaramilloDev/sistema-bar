@@ -27,12 +27,14 @@ type Notice = { text: string; kind: 'ok' | 'err' };
 
 /**
  * Gestión de clientes. Sirve a `/admin/customers` y `/employee/customers`.
- * Ambos roles consultan / crean / editan / registran abonos; solo el admin
- * elimina (además de la RLS de Supabase, que es la barrera real).
+ * Ambos roles consultan y crean; solo el admin edita y elimina (además de
+ * la RLS de Supabase, que es la barrera real). El empleado abona a sus
+ * propias ventas pendientes desde "Abonar" (`pages/employee/pending`), no
+ * desde aquí.
  *
- * `cuenta` = saldo pendiente. Al crear se fija el saldo inicial; al editar se
- * puede sumar un cargo (nuevo consumo) y/o restar un abono (pago):
- * `cuenta_nueva = max(0, cuenta + cargo - abono)`.
+ * `cuenta` = saldo pendiente. Al crear se fija el saldo inicial; al editar
+ * (admin) se puede sumar un cargo (nuevo consumo) y/o restar un abono
+ * manual: `cuenta_nueva = max(0, cuenta + cargo - abono)`.
  */
 @Component({
   selector: 'app-customers',
