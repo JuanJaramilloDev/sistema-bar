@@ -262,4 +262,90 @@
       }
     }
   }
+
+  <!-- Zona de peligro: borra ventas/abonos. No aparece al imprimir. -->
+  <section class="card panel panel--danger no-print">
+    <div class="panel__head">
+      <span class="panel__title">Zona de peligro</span>
+    </div>
+    <div class="panel__body--pad">
+      @if (notice(); as n) {
+        <div
+          class="alert"
+          [class.alert-success]="n.kind === 'ok'"
+          [class.alert-danger]="n.kind === 'err'"
+          (click)="dismissNotice()"
+        >{{ n.text }}</div>
+      }
+      <p class="hint">
+        Borra todas las ventas, sus líneas y todos los pagos (incluidos los
+        abonos), junto con los movimientos de inventario que generaron.
+        Productos, categorías, inventario actual, clientes y usuarios no se
+        tocan (solo se pone en 0 la cuenta pendiente de cada cliente, porque
+        las ventas que la generaban ya no existirían). Esta acción no se
+        puede deshacer.
+      </p>
+      <button type="button" class="btn btn-danger" (click)="openWipe()">
+        <app-icon name="trash" /> Borrar historial de ventas y abonos
+      </button>
+    </div>
+  </section>
 </div>
+
+<!-- Modal: confirmar borrado total (doble verificación) -->
+<app-modal
+  [open]="wipeOpen()"
+  [locked]="wiping()"
+  title="Borrar historial de ventas"
+  (closed)="closeWipe()"
+>
+  <div class="form">
+    <p>
+      Vas a borrar <strong>todas</strong> las ventas, sus líneas, pagos y
+      abonos, y los movimientos de inventario que generaron. Las existencias
+      actuales, productos, categorías, clientes y usuarios no se tocan.
+    </p>
+    <p><strong>Esta acción no se puede deshacer.</strong></p>
+
+    <label class="field field--checkbox">
+      <input
+        type="checkbox"
+        [checked]="wipeAck()"
+        (change)="wipeAck.set($any($event.target).checked)"
+      />
+      <span>Entiendo que esta acción no se puede deshacer.</span>
+    </label>
+
+    <div class="field">
+      <label for="wipe-confirm">Escribe BORRAR para confirmar</label>
+      <input
+        id="wipe-confirm"
+        type="text"
+        class="input"
+        autocomplete="off"
+        placeholder="BORRAR"
+        [value]="wipeConfirmText()"
+        (input)="wipeConfirmText.set($any($event.target).value)"
+      />
+    </div>
+
+    @if (wipeError()) {
+      <div class="alert alert-danger">{{ wipeError() }}</div>
+    }
+
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" (click)="closeWipe()" [disabled]="wiping()">
+        Cancelar
+      </button>
+      <button
+        type="button"
+        class="btn btn-danger"
+        (click)="confirmWipe()"
+        [disabled]="!wipeReady() || wiping()"
+      >
+        @if (wiping()) { <span class="spinner"></span> Borrando… }
+        @else { Borrar todo }
+      </button>
+    </div>
+  </div>
+</app-modal>

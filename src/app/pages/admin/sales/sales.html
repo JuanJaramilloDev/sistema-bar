@@ -74,14 +74,21 @@
                           [disabled]="p.available <= 0"
                           (click)="addToCart(p)"
                         >
-                          <span class="prod__name">{{ p.name }}</span>
-                          <span class="prod__meta">
-                            <span class="prod__price">{{ p.unitPrice | currency }}</span>
-                            <span
-                              class="prod__stock"
-                              [class.is-low]="p.available > 0 && p.available <= 5"
-                              [class.is-out]="p.available <= 0"
-                            >{{ p.available > 0 ? p.available + ' disp.' : 'Sin stock' }}</span>
+                          @if (p.image) {
+                            <img class="prod__img" [src]="p.image" [alt]="p.name" />
+                          } @else {
+                            <span class="prod__img prod__img--empty">—</span>
+                          }
+                          <span class="prod__body">
+                            <span class="prod__name">{{ p.name }}</span>
+                            <span class="prod__meta">
+                              <span class="prod__price">{{ p.unitPrice | currency }}</span>
+                              <span
+                                class="prod__stock"
+                                [class.is-low]="p.available > 0 && p.available <= 5"
+                                [class.is-out]="p.available <= 0"
+                              >{{ p.available > 0 ? p.available + ' disp.' : 'Sin stock' }}</span>
+                            </span>
                           </span>
                         </button>
                       </li>
@@ -111,14 +118,21 @@
                                 [disabled]="p.available <= 0"
                                 (click)="addToCart(p)"
                               >
-                                <span class="prod__name">{{ p.name }}</span>
-                                <span class="prod__meta">
-                                  <span class="prod__price">{{ p.unitPrice | currency }}</span>
-                                  <span
-                                    class="prod__stock"
-                                    [class.is-low]="p.available > 0 && p.available <= 5"
-                                    [class.is-out]="p.available <= 0"
-                                  >{{ p.available > 0 ? p.available + ' disp.' : 'Sin stock' }}</span>
+                                @if (p.image) {
+                                  <img class="prod__img" [src]="p.image" [alt]="p.name" />
+                                } @else {
+                                  <span class="prod__img prod__img--empty">—</span>
+                                }
+                                <span class="prod__body">
+                                  <span class="prod__name">{{ p.name }}</span>
+                                  <span class="prod__meta">
+                                    <span class="prod__price">{{ p.unitPrice | currency }}</span>
+                                    <span
+                                      class="prod__stock"
+                                      [class.is-low]="p.available > 0 && p.available <= 5"
+                                      [class.is-out]="p.available <= 0"
+                                    >{{ p.available > 0 ? p.available + ' disp.' : 'Sin stock' }}</span>
+                                  </span>
                                 </span>
                               </button>
                             </li>
@@ -149,6 +163,11 @@
                 <div class="cart">
                   @for (line of cart(); track line.productId) {
                     <div class="cart-line" [class.is-over]="line.quantity > line.available">
+                      @if (line.image) {
+                        <img class="cart-line__img" [src]="line.image" [alt]="line.name" />
+                      } @else {
+                        <span class="cart-line__img cart-line__img--empty">—</span>
+                      }
                       <div class="cart-line__info">
                         <span class="cart-line__name">{{ line.name }}</span>
                         <span class="cart-line__unit">{{ line.unitPrice | currency }} c/u</span>

@@ -269,19 +269,24 @@
           }
         </div>
 
-        <div class="field">
-          <label for="p-img">Imagen (URL) <span class="hint">(opcional)</span></label>
-          <input
-            id="p-img"
-            type="url"
-            class="input"
-            formControlName="image"
-            placeholder="https://…"
-            [class.is-invalid]="form.controls.image.touched && form.controls.image.invalid"
-          />
-          @if (form.controls.image.touched && form.controls.image.invalid) {
-            <span class="field-error">Escribe una URL válida (http/https).</span>
-          }
+        <div class="field field--full">
+          <label>Imagen <span class="hint">(opcional, una sola)</span></label>
+          <div class="image-field">
+            @if (previewUrl(); as preview) {
+              <img class="image-field__preview" [src]="preview" alt="Vista previa" />
+            } @else {
+              <span class="image-field__preview image-field__preview--empty">Sin imagen</span>
+            }
+            <div class="image-field__actions">
+              <label class="btn btn-ghost btn-sm">
+                Elegir imagen
+                <input class="image-field__input" type="file" accept="image/*" (change)="onImageSelected($event)" />
+              </label>
+              @if (previewUrl()) {
+                <button type="button" class="btn btn-ghost btn-sm" (click)="clearImage()">Quitar</button>
+              }
+            </div>
+          </div>
         </div>
       </div>
 

@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
   signal
 } from '@angular/core';
@@ -11,6 +12,7 @@ import { Sales as SalesApi } from '../../../core/services/sales';
 import { Products } from '../../../core/services/products';
 import { Inventory } from '../../../core/services/inventory';
 import { Customers } from '../../../core/services/customers';
+import { Realtime } from '../../../core/services/realtime';
 import { humanizeDbError, type DbError } from '../../../core/services/supabase';
 import { CurrencyPipe } from '../../../shared/pipes/currency-pipe';
 import { Modal } from '../../../shared/components/modal/modal';
@@ -47,6 +49,7 @@ interface CatalogEntry {
   unitPrice: number;
   available: number;
   categoryId: number | null;
+  image: string | null;
 }
 
 /** Categoría con sus productos, para el desplegable del catálogo. */
@@ -83,6 +86,7 @@ export class Sales {
   private readonly inventoryApi = inject(Inventory);
   private readonly customersApi = inject(Customers);
   private readonly categoriesApi = inject(CategoriesApi);
+  private readonly realtime = inject(Realtime);
   private readonly auth = inject(Auth);
 
   private noticeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -274,6 +278,23 @@ export class Sales {
 
   constructor() {
     void this.loadCatalog();
+
+    // Otra venta (en este dispositivo u otro) refresca el stock del catálogo
+    // y, si el listado está abierto, también las ventas. El carrito en curso
+    // no se toca: solo se reemplazan existencias y el listado.
+    let first = true;
+    effect(() => {
+      this.realtime.salesTick();
+      this.realtime.inventoryTick();
+      if (first) {
+        first = false;
+        return;
+      }
+      void this.loadCatalog();
+      if (this.tab() === 'list') {
+        void this.loadList(true);
+      }
+    });
   }
 
   // ------------------------------------------------------------- navegación ---
@@ -288,7 +309,9 @@ export class Sales {
   // ---------------------------------------------------------------- catálogo ---
 
   async loadCatalog(): Promise<void> {
-    this.catalogState.set('loading');
+    if (this.catalogState() !== 'ready') {
+      this.catalogState.set('loading');
+    }
     try {
       const [catalog, stock, customers, categories] = await Promise.all([
         this.productsApi.catalog(),
@@ -304,7 +327,8 @@ export class Sales {
             name: p.name,
             unitPrice: p.sale_price,
             available: stockByProduct.get(p.id) ?? 0,
-            categoryId: p.category_id
+            categoryId: p.category_id,
+            image: p.image
           }))
           .sort((a, b) => a.name.localeCompare(b.name))
       );
@@ -344,7 +368,8 @@ export class Sales {
           name: entry.name,
           unitPrice: entry.unitPrice,
           available: entry.available,
-          quantity: 1
+          quantity: 1,
+          image: entry.image
         }
       ];
     });
@@ -463,10 +488,19 @@ export class Sales {
 
   // -------------------------------------------------------------- listado ---
 
-  async loadList(): Promise<void> {
-    this.listState.set('loading');
-    this.expandedId.set(null);
-    this.detailCache.set({});
+  /**
+   * `silent`: true cuando la llamada viene de un aviso en tiempo real, no de
+   * una acción del usuario. En ese caso no se reinicia a "loading" (si ya
+   * había datos) ni se colapsa la fila que esté desplegada.
+   */
+  async loadList(silent = false): Promise<void> {
+    if (!silent) {
+      this.expandedId.set(null);
+      this.detailCache.set({});
+    }
+    if (this.listState() !== 'ready') {
+      this.listState.set('loading');
+    }
     try {
       this.sales.set(await this.api.list(this.range(), ''));
       this.listLoaded = true;

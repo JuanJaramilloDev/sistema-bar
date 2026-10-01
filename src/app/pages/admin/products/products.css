@@ -5,3 +5,43 @@
 .notice-alert {
   cursor: pointer;
 }
+
+.image-field {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.image-field__preview {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.image-field__preview--empty {
+  display: grid;
+  place-items: center;
+  color: var(--text-dim);
+  font-size: 11px;
+  text-align: center;
+}
+.image-field__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.image-field__actions label {
+  position: relative;
+}
+.image-field__input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  cursor: pointer;
+}

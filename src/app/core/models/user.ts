@@ -5,16 +5,26 @@ export type UserRole = 'admin' | 'employee';
 
 /**
  * Fila de la tabla `profiles` de Supabase.
- *   id (uuid, = auth.users.id), name, email, role, created_at
- * No existe columna `active`: la tabla no soporta desactivar un usuario, solo
- * cambiar su nombre. Para bloquear el acceso de un empleado hay que borrar
- * su usuario en Supabase Auth (Authentication > Users) o cambiar su contraseña.
+ *   id (uuid, = auth.users.id), name, email, role, active, created_at
+ *
+ * `active` (boolean, default true): desactivar a un empleado NO borra nada
+ * de lo que hizo (ventas, movimientos de inventario) — solo le impide volver
+ * a entrar. Lo aplica `roleGuard` (y el login) comprobando `active === false`
+ * y cerrando la sesión. Ver `supabase/sql/fix-09-employee-active.sql`.
+ *
+ * SEGURIDAD: esto es un candado de navegación, igual que el resto de `role()`.
+ * Una sesión YA abierta (token todavía válido) no se corta al instante si se
+ * desactiva a alguien a mitad de turno: se corta en su próximo login o
+ * recarga completa de la página, porque el perfil se cachea en memoria
+ * mientras dura la pestaña. Si se necesita corte inmediato, haría falta RLS
+ * adicional o una suscripción en tiempo real a `profiles` (no implementado).
  */
 export interface Profile {
   id: string;
   email: string | null;
   name: string | null;
   role: UserRole;
+  active: boolean;
   created_at: string;
 }
 

@@ -101,6 +101,7 @@ export interface CartLine {
   unitPrice: number;
   available: number;
   quantity: number;
+  image?: string | null;
 }
 
 /** Ítem que se envía a la RPC. `unit_price` es orientativo: el servidor manda. */

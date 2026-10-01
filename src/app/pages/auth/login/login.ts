@@ -37,7 +37,24 @@ export class Login {
   });
 
   constructor() {
+    this.showReasonMessage();
     void this.redirectIfAuthenticated();
+  }
+
+  /** Mensaje cuando `roleGuard` expulsó a alguien antes de llegar aquí. */
+  private showReasonMessage(): void {
+    switch (this.route.snapshot.queryParamMap.get('reason')) {
+      case 'disabled':
+        this.serverError.set(
+          'Tu cuenta fue desactivada. Contacta al administrador.'
+        );
+        break;
+      case 'no-profile':
+        this.serverError.set(
+          'Tu usuario no tiene un perfil asignado. Contacta al administrador.'
+        );
+        break;
+    }
   }
 
   togglePassword(): void {
@@ -67,6 +84,14 @@ export class Login {
         this.serverError.set(
           'Tu usuario no tiene un perfil asignado. Contacta al administrador.'
         );
+        return;
+      }
+
+      if (!this.auth.isActive()) {
+        // El mismo caso que atrapa roleGuard más adelante; se corta aquí para
+        // no hacerle dar una vuelta de más por /admin o /employee.
+        await this.auth.signOut();
+        this.serverError.set('Tu cuenta fue desactivada. Contacta al administrador.');
         return;
       }
 

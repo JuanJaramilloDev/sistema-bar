@@ -1,16 +1,20 @@
 import { Injectable, inject } from '@angular/core';
-import { Supabase } from './supabase';
+import { Supabase, assertAffected } from './supabase';
 import type { NewEmployee, Profile } from '../models/user';
 
 /**
  * Gestión de empleados = filas de `profiles`.
  *
- * - Listar / renombrar: consultas normales sobre `profiles` (la RLS de
- *   Supabase permite al admin ver todos los perfiles y editar `name`).
- * - Crear un usuario employee, o cambiarle la contraseña: NO se puede desde
- *   Angular (requiere service_role). Se delega en las Edge Functions
+ * - Listar / renombrar / activar-desactivar: consultas normales sobre
+ *   `profiles` (la RLS de Supabase solo deja escribir al admin).
+ * - Crear o cambiar la contraseña de un empleado: NO se puede desde Angular
+ *   (requiere service_role). Se delega en las Edge Functions
  *   `create-employee` y `reset-employee-password`, que verifican que quien
  *   llama es admin.
+ *
+ * No existe "eliminar" un empleado: para no arriesgar perder sus ventas o
+ * movimientos de inventario, en vez de borrar se desactiva (`active = false`),
+ * que le impide volver a iniciar sesión sin tocar nada de su historial.
  *
  * SEGURIDAD: Angular nunca cambia `role` ni `id`. Esas columnas están revocadas
  * para `authenticated` en Supabase; un cambio de rol necesitaría una función
@@ -29,7 +33,7 @@ export class Employees {
   async list(): Promise<Profile[]> {
     const { data, error } = await this.db
       .from('profiles')
-      .select('id, name, email, role, created_at')
+      .select('id, name, email, role, active, created_at')
       .order('name', { ascending: true })
       .returns<Profile[]>();
 
@@ -59,6 +63,24 @@ export class Employees {
       throw new EmployeeError('UNEXPECTED');
     }
     return data;
+  }
+
+  /**
+   * Activa/desactiva el acceso de un empleado. No borra ni toca sus ventas o
+   * movimientos de inventario: solo le impide volver a iniciar sesión
+   * (lo comprueba `roleGuard` y el login). RLS exige admin para este UPDATE.
+   */
+  async setActive(id: string, active: boolean): Promise<void> {
+    const { data, error } = await this.db
+      .from('profiles')
+      .update({ active })
+      .eq('id', id)
+      .select('id');
+
+    if (error) {
+      throw error;
+    }
+    assertAffected(data, 'no se pudo cambiar el estado del empleado');
   }
 
   async rename(id: string, name: string): Promise<void> {

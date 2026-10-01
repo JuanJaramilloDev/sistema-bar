@@ -54,13 +54,14 @@
                     <th>Nombre</th>
                     <th>Correo</th>
                     <th class="col-tight">Rol</th>
+                    <th class="col-tight">Estado</th>
                     <th class="col-tight">Creado</th>
                     <th class="col-tight">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   @for (person of filtered(); track person.id) {
-                    <tr>
+                    <tr [class.is-inactive]="!person.active">
                       <td class="cell-main__name">
                         {{ person.name || '—' }}
                         @if (person.id === currentUserId()) {
@@ -75,6 +76,15 @@
                           [class.badge--neutral]="person.role !== 'admin'"
                         >
                           {{ roleLabel(person.role) }}
+                        </span>
+                      </td>
+                      <td class="col-tight">
+                        <span
+                          class="badge"
+                          [class.badge--success]="person.active"
+                          [class.badge--neutral]="!person.active"
+                        >
+                          {{ person.active ? 'Activo' : 'Desactivado' }}
                         </span>
                       </td>
                       <td class="col-tight">{{ person.created_at | date:'dd/MM/yy' }}</td>
@@ -96,6 +106,18 @@
                           >
                             <app-icon name="key" />
                           </button>
+                          @if (person.role === 'employee') {
+                            <button
+                              type="button"
+                              class="icon-btn"
+                              [class.icon-btn--danger]="person.active"
+                              [title]="person.active ? 'Desactivar (ya no podrá iniciar sesión)' : 'Activar'"
+                              [disabled]="busyId() === person.id"
+                              (click)="toggleActive(person)"
+                            >
+                              <app-icon name="power" />
+                            </button>
+                          }
                         </div>
                       </td>
                     </tr>

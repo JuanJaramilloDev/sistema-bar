@@ -25,6 +25,8 @@
   --accent-soft:     rgba(207, 58, 58, 0.13);
   --accent-border:   rgba(207, 58, 58, 0.40);
   --accent-contrast: #ffffff;
+  /* El rojo también se usa como LUZ (halos, anillos de foco), no solo relleno. */
+  --accent-glow:     rgba(207, 58, 58, 0.30);
 
   /* Estados */
   --success:      #4ade80;
@@ -44,9 +46,21 @@
   --shadow-2: 0 8px 24px rgba(0, 0, 0, 0.35);
   --shadow-3: 0 24px 60px rgba(0, 0, 0, 0.5);
 
-  /* Tipografía */
+  /* Luz de canto: filo claro arriba (como un panel lacado que coge la luz)
+     y sombra de apoyo. Da relieve sin engordar los bordes. */
+  --edge:       inset 0 1px 0 rgba(255, 255, 255, 0.055);
+  --lift:       0 1px 2px rgba(0, 0, 0, 0.4), var(--edge);
+  --lift-hover: 0 6px 18px rgba(0, 0, 0, 0.45), var(--edge);
+
+  /* Anillo de foco único para toda la app (teclado y campos). */
+  --ring: 0 0 0 3px var(--accent-soft), 0 0 0 1px var(--accent-border);
+
+  /* Tipografía
+     - display: rótulo del bar (títulos de página y del login). Poco y fuerte.
+     - font:    todo lo demás; datos y controles piden legibilidad, no carácter. */
   --font: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto,
     Helvetica, Arial, sans-serif;
+  --font-display: "Archivo Black", "Inter", "Segoe UI", system-ui, sans-serif;
 
   /* Layout */
   --sidebar-w: 244px;
@@ -65,14 +79,51 @@ body {
 }
 
 body {
+  position: relative;
   margin: 0;
-  background: var(--bg);
+  /* Luz de sala: dos focos rojos muy tenues, uno arriba a la izquierda y otro
+     abajo a la derecha. Es la misma atmósfera que ya tenía el login, llevada a
+     toda la app para que no cambie de ambiente al entrar. */
+  background:
+    radial-gradient(1100px 620px at 8% -12%, rgba(207, 58, 58, 0.085), transparent 62%),
+    radial-gradient(900px 600px at 108% 115%, rgba(207, 58, 58, 0.055), transparent 58%),
+    var(--bg);
+  background-attachment: fixed;
   color: var(--text);
   font-family: var(--font);
   font-size: 15px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Marca de agua del bar: fija, detrás de todo el contenido, muy tenue para
+   no competir con la información. Vive en el `body` para que se vea en
+   cualquier pantalla (login incluido), no solo dentro del layout con sidebar.
+   Se ancla abajo a la derecha (no al centro) para no quedar tapada por el
+   contenido principal o las tarjetas/modales, que casi siempre están centrados. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: url('/img/logo.png') no-repeat right 24px bottom 24px;
+  background-size: min(30vw, 320px);
+  opacity: 0.14;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Grano muy sutil sobre todo el fondo: rompe el degradado plano de las
+   superficies oscuras sin que se note como textura, solo como profundidad. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.025;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 h1, h2, h3, h4 {
@@ -89,6 +140,14 @@ a {
 
 button {
   font-family: inherit;
+}
+
+/* Foco visible y consistente en TODO lo que se navega con teclado. Antes solo
+   lo tenían los campos; los botones dependían del outline del navegador. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+  border-radius: var(--radius-sm);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -119,10 +178,13 @@ button {
    ------------------------------------------------------------------------- */
 
 .card {
-  background: var(--surface);
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.022), transparent 120px),
+    var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-1);
+  box-shadow: var(--lift);
 }
 
 /* Botones */
@@ -136,28 +198,38 @@ button {
   border-radius: var(--radius-sm);
   font-size: 14px;
   font-weight: 600;
+  letter-spacing: 0.01em;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease,
+    box-shadow 0.15s ease, transform 0.08s ease;
   white-space: nowrap;
+}
+.btn:not(:disabled):active {
+  transform: translateY(1px);
 }
 .btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
 .btn-primary {
-  background: var(--accent);
+  background: linear-gradient(180deg, var(--accent-hover), var(--accent));
+  border-color: var(--accent-strong);
   color: var(--accent-contrast);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 .btn-primary:not(:disabled):hover {
-  background: var(--accent-hover);
+  background: linear-gradient(180deg, #e75c5c, var(--accent-hover));
+  box-shadow: 0 4px 16px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 .btn-ghost {
-  background: transparent;
+  background: var(--surface-2);
   border-color: var(--border-strong);
   color: var(--text-muted);
+  box-shadow: var(--edge);
 }
 .btn-ghost:not(:disabled):hover {
-  background: var(--surface-2);
+  background: var(--surface-3);
+  border-color: var(--accent-border);
   color: var(--text);
 }
 
@@ -168,8 +240,9 @@ button {
   gap: 7px;
 }
 .field label {
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   color: var(--text-muted);
 }
 .input {
@@ -181,12 +254,17 @@ button {
   color: var(--text);
   font-size: 14px;
   outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 .input::placeholder {
   color: var(--text-dim);
 }
+.input:hover:not(:focus):not(:disabled) {
+  border-color: var(--border-strong);
+}
 .input:focus {
+  background: var(--surface-3);
   border-color: var(--accent-border);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
@@ -198,21 +276,44 @@ button {
   color: var(--danger);
 }
 
-/* Mensajes de estado */
+/* Checkbox de confirmación (p. ej. "Entiendo que no se puede deshacer"). */
+.field--checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 9px;
+}
+.field--checkbox input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.field--checkbox span {
+  font-size: 13px;
+  color: var(--text);
+}
+
+/* Mensajes de estado. El canto izquierdo grueso es la "jamba": el mismo gesto
+   que marca la opción activa del menú, reutilizado para señalar un aviso. */
 .alert {
   padding: 11px 14px;
   border-radius: var(--radius-sm);
   font-size: 13px;
   border: 1px solid transparent;
+  border-left-width: 3px;
 }
+/* El color va en la jamba, no en todo el perímetro: un recuadro rojo completo
+   grita más de lo que informa. */
 .alert-danger {
   background: var(--danger-soft);
-  border-color: var(--danger);
+  border-color: rgba(248, 113, 113, 0.22);
+  border-left-color: var(--danger);
   color: #fecaca;
 }
 .alert-success {
   background: var(--success-soft);
-  border-color: var(--success);
+  border-color: rgba(74, 222, 128, 0.22);
+  border-left-color: var(--success);
   color: #bbf7d0;
 }
 
@@ -247,6 +348,20 @@ button {
 .badge--danger  { background: var(--danger-soft);  color: #fca5a5; border-color: rgba(248,113,113,0.25); }
 .badge--neutral { background: var(--surface-3);    color: var(--text-muted); border-color: var(--border); }
 
+/* Punto de estado: un badge de estado (pagada/pendiente/activo…) se lee más
+   rápido con un punto de color que solo con el texto. Los neutros (roles,
+   conteos) no llevan punto: no son un "estado". */
+.badge--success::before,
+.badge--warn::before,
+.badge--danger::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: currentColor;
+}
+
 /* Tabla profesional */
 .table-wrap {
   width: 100%;
@@ -274,7 +389,8 @@ button {
 .table-wrap--scroll-2 thead th {
   position: sticky;
   top: 0;
-  background: var(--surface);
+  /* Opaco a propósito: las filas pasan por debajo al hacer scroll. */
+  background: var(--surface-3);
   z-index: 1;
 }
 .table {
@@ -285,13 +401,14 @@ button {
 }
 .table th {
   text-align: left;
-  padding: 10px 14px;
+  padding: 11px 14px;
   font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   color: var(--text-dim);
-  border-bottom: 1px solid var(--border);
-  font-weight: 600;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border-strong);
+  font-weight: 700;
 }
 .table td {
   padding: 12px 14px;
@@ -301,11 +418,19 @@ button {
 .table tbody tr:last-child td {
   border-bottom: none;
 }
-.table tbody tr {
-  transition: background 0.12s ease;
+/* Cebra muy sutil: ayuda a seguir una fila en tablas anchas sin que se note
+   como "rayas". */
+.table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.015);
 }
+.table tbody tr {
+  transition: background 0.12s ease, box-shadow 0.12s ease;
+}
+/* Al pasar por una fila se enciende su canto izquierdo: la misma jamba roja
+   del menú, para que el ojo no pierda la fila en tablas anchas. */
 .table tbody tr:hover {
   background: var(--surface-2);
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 .num {
   font-variant-numeric: tabular-nums;
@@ -333,6 +458,13 @@ button {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  /* Entrada corta al cambiar de pantalla: confirma la navegación sin hacer
+     esperar. Se anula con `prefers-reduced-motion`. */
+  animation: page-in 0.22s ease both;
+}
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .page__head {
@@ -342,9 +474,13 @@ button {
   flex-wrap: wrap;
   gap: 6px;
 }
+/* Rótulo: la única tipografía con carácter de toda la app. Se reserva para el
+   título de la pantalla, como el letrero sobre la barra. */
 .page__title {
-  font-size: 20px;
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-size: 21px;
+  font-weight: 400;
+  letter-spacing: -0.015em;
 }
 .page__subtitle {
   font-size: 13px;
@@ -363,28 +499,91 @@ button {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  overflow: hidden;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+.stat:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--lift-hover);
+  transform: translateY(-1px);
 }
 .stat__label {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-dim);
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.07em;
 }
 .stat__value {
-  font-size: 24px;
+  font-size: 26px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
 }
 .stat__hint {
   font-size: 12px;
   color: var(--text-muted);
 }
+
+/* Las tarjetas que piden atención se marcan con la jamba encendida en su
+   canto izquierdo, no solo con el número en color. */
+.stat--accent,
+.stat--warn {
+  position: relative;
+}
+.stat--accent::before,
+.stat--warn::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--accent);
+}
+.stat--accent {
+  background:
+    linear-gradient(110deg, var(--accent-soft), transparent 55%),
+    var(--surface);
+}
 .stat--accent .stat__value {
   color: var(--accent);
 }
+.stat--warn::before {
+  background: var(--warning);
+}
+.stat--warn {
+  background:
+    linear-gradient(110deg, var(--warning-soft), transparent 55%),
+    var(--surface);
+}
 .stat--warn .stat__value {
+  color: var(--warning);
+}
+
+/* Chip con glifo en la esquina: una pista visual del tipo de cifra, no solo
+   el color del número. */
+.stat--accent::after,
+.stat--warn::after {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+}
+.stat--accent::after {
+  content: "↑";
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.stat--warn::after {
+  content: "!";
+  background: var(--warning-soft);
   color: var(--warning);
 }
 
@@ -400,17 +599,43 @@ button {
   justify-content: space-between;
   gap: 10px;
   padding: 14px 16px;
+  background: linear-gradient(180deg, var(--surface-2), transparent);
   border-bottom: 1px solid var(--border);
 }
+/* La jamba del encabezado: hilo rojo en el canto, el mismo gesto del portón. */
 .panel__title {
+  position: relative;
+  padding-left: 11px;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.005em;
+}
+.panel__title::before {
+  content: "";
+  position: absolute;
+  inset: 1px auto 1px 0;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--accent);
 }
 .panel__body {
   padding: 4px 0;
 }
 .panel__body--pad {
   padding: 16px;
+}
+
+/* Panel de "zona de peligro" (p. ej. borrar historial en Reportes): la jamba
+   y el título pasan de rojo-marca a un rojo de alerta más saturado, para que
+   no se confunda con un panel normal. */
+.panel--danger {
+  border-color: rgba(248, 113, 113, 0.35);
+}
+.panel--danger .panel__head {
+  background: linear-gradient(180deg, var(--danger-soft), transparent);
+}
+.panel--danger .panel__title::before {
+  background: var(--danger);
 }
 
 .dash-grid {
@@ -501,11 +726,17 @@ button {
   color: var(--text-muted);
   font-size: 14px;
   cursor: pointer;
-  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+  box-shadow: var(--edge);
+  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease,
+    transform 0.08s ease;
 }
 .icon-btn:hover:not(:disabled) {
   background: var(--surface-3);
+  border-color: var(--border-strong);
   color: var(--text);
+}
+.icon-btn:active:not(:disabled) {
+  transform: translateY(1px);
 }
 .icon-btn:disabled {
   opacity: 0.45;
@@ -654,10 +885,13 @@ button {
   border-radius: 6px;
   cursor: pointer;
 }
+.tabs__btn:hover:not(.is-active) {
+  color: var(--text);
+}
 .tabs__btn.is-active {
   background: var(--surface);
   color: var(--text);
-  box-shadow: var(--shadow-1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), inset 0 -2px 0 var(--accent);
 }
 
 /* Resumen de conteos bajo el título */
@@ -759,8 +993,25 @@ button {
   }
   app-sidebar,
   app-navbar,
-  .no-print {
+  .no-print,
+  body::before,
+  body::after {
     display: none !important;
+  }
+  /* En papel no hay luz de sala ni relieve: todo plano y sin degradados, para
+     que el tóner no pinte fondos. */
+  body,
+  .card,
+  .panel__head,
+  .stat,
+  .stat--accent,
+  .stat--warn,
+  .btn-primary {
+    background: var(--surface) !important;
+    box-shadow: none !important;
+  }
+  .page {
+    animation: none !important;
   }
   .shell__content {
     padding: 0 !important;

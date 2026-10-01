@@ -9,10 +9,18 @@ import type { UserRole } from '../models/user';
  *
  * - Sin sesión -> lo resuelve antes `authGuard`.
  * - Sesión pero sin perfil/rol -> fuera (posible fallo de RLS en `profiles`).
+ * - Perfil desactivado (`active = false`) -> fuera, y se cierra la sesión.
  * - Rol equivocado -> se le envía a SU propia área, nunca entra a la ajena.
  *
  * Esto NO sustituye a RLS: aunque alguien fuerce la navegación, Supabase debe
  * seguir negando los datos que no le corresponden.
+ *
+ * LÍMITE conocido: el perfil se cachea en memoria mientras dura la pestaña
+ * (`ensureLoaded()` no lo vuelve a pedir si ya lo tiene). Si a alguien lo
+ * desactivan mientras ya tiene la app abierta, este guard no lo saca al
+ * instante — lo hace en su próxima navegación tras recargar la página o en
+ * su próximo login. No hay suscripción en tiempo real a `profiles` para
+ * cortar la sesión de inmediato.
  */
 export const roleGuard: CanMatchFn = async (
   route: Route
@@ -26,6 +34,13 @@ export const roleGuard: CanMatchFn = async (
   if (!role) {
     return router.createUrlTree(['/login'], {
       queryParams: { reason: 'no-profile' }
+    });
+  }
+
+  if (!auth.isActive()) {
+    await auth.signOut();
+    return router.createUrlTree(['/login'], {
+      queryParams: { reason: 'disabled' }
     });
   }
 

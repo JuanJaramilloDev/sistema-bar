@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
   signal
 } from '@angular/core';
@@ -9,6 +10,7 @@ import { DatePipe } from '@angular/common';
 import { Auth } from '../../../core/services/auth';
 import { Sales } from '../../../core/services/sales';
 import { Inventory } from '../../../core/services/inventory';
+import { Realtime } from '../../../core/services/realtime';
 import { CurrencyPipe } from '../../../shared/pipes/currency-pipe';
 import { Loading } from '../../../shared/components/loading/loading';
 import { Empty } from '../../../shared/components/empty/empty';
@@ -33,6 +35,7 @@ export class Dashboard {
 
   private readonly sales = inject(Sales);
   private readonly inventory = inject(Inventory);
+  private readonly realtime = inject(Realtime);
   protected readonly auth = inject(Auth);
 
   protected readonly statsState = signal<LoadState>('loading');
@@ -50,6 +53,20 @@ export class Dashboard {
 
   constructor() {
     this.reload();
+
+    // Una venta hecha en OTRO dispositivo (u otro empleado) recarga este
+    // panel sola, sin que nadie tenga que refrescar. Se ignora el primer
+    // disparo del effect (ya se cargó arriba) para no duplicar la carga inicial.
+    let first = true;
+    effect(() => {
+      this.realtime.salesTick();
+      this.realtime.inventoryTick();
+      if (first) {
+        first = false;
+        return;
+      }
+      this.reload();
+    });
   }
 
   reload(): void {
@@ -59,7 +76,11 @@ export class Dashboard {
   }
 
   private async loadStats(): Promise<void> {
-    this.statsState.set('loading');
+    // Si ya había datos en pantalla (recarga en vivo), no se vuelve a mostrar
+    // el spinner: solo se reemplazan los números cuando lleguen.
+    if (this.statsState() !== 'ready') {
+      this.statsState.set('loading');
+    }
     const { startOfToday, startOfMonth, outstandingFrom } = timeWindow();
     try {
       const [today, month, pending] = await Promise.all([
@@ -79,7 +100,9 @@ export class Dashboard {
   }
 
   private async loadRecent(): Promise<void> {
-    this.recentState.set('loading');
+    if (this.recentState() !== 'ready') {
+      this.recentState.set('loading');
+    }
     try {
       this.recent.set(await this.sales.recent(4));
       this.recentState.set('ready');
@@ -90,7 +113,9 @@ export class Dashboard {
   }
 
   private async loadLowStock(): Promise<void> {
-    this.lowState.set('loading');
+    if (this.lowState() !== 'ready') {
+      this.lowState.set('loading');
+    }
     try {
       this.lowStock.set(await this.inventory.lowStock());
       this.lowState.set('ready');

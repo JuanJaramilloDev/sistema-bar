@@ -2,12 +2,14 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
   signal
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { Auth } from '../../../core/services/auth';
 import { Sales as SalesApi } from '../../../core/services/sales';
+import { Realtime } from '../../../core/services/realtime';
 import { humanizeDbError, type DbError } from '../../../core/services/supabase';
 import { CurrencyPipe } from '../../../shared/pipes/currency-pipe';
 import { Modal } from '../../../shared/components/modal/modal';
@@ -41,6 +43,7 @@ export class Pending {
 
   private readonly api = inject(SalesApi);
   private readonly auth = inject(Auth);
+  private readonly realtime = inject(Realtime);
 
   private noticeTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -90,10 +93,24 @@ export class Pending {
 
   constructor() {
     void this.load();
+
+    // Si otro dispositivo registra una venta o un abono propio, esta lista
+    // se actualiza sola.
+    let first = true;
+    effect(() => {
+      this.realtime.salesTick();
+      if (first) {
+        first = false;
+        return;
+      }
+      void this.load();
+    });
   }
 
   async load(): Promise<void> {
-    this.state.set('loading');
+    if (this.state() !== 'ready') {
+      this.state.set('loading');
+    }
     try {
       const userId = this.auth.session()?.user.id;
       if (!userId) {

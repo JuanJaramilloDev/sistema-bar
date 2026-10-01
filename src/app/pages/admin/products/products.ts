@@ -14,6 +14,7 @@ import {
 } from '@angular/forms';
 import { Products as ProductsApi } from '../../../core/services/products';
 import { Categories as CategoriesApi } from '../../../core/services/categories';
+import { Storage as StorageApi } from '../../../core/services/storage';
 import { humanizeDbError, type DbError } from '../../../core/services/supabase';
 import { CurrencyPipe } from '../../../shared/pipes/currency-pipe';
 import { Modal } from '../../../shared/components/modal/modal';
@@ -42,9 +43,12 @@ export class Products {
 
   private readonly productsApi = inject(ProductsApi);
   private readonly categoriesApi = inject(CategoriesApi);
+  private readonly storageApi = inject(StorageApi);
   private readonly fb = inject(NonNullableFormBuilder);
 
   private noticeTimer: ReturnType<typeof setTimeout> | null = null;
+  /** URL de objeto de la vista previa local; se revoca al reemplazarla o cerrar el formulario. */
+  private objectUrl: string | null = null;
 
   readonly state = signal<ViewState>('loading');
   readonly all = signal<ProductRow[]>([]);
@@ -91,9 +95,15 @@ export class Products {
     description: this.fb.control('', [Validators.maxLength(400)]),
     sale_price: this.fb.control(0, [Validators.required, positive]),
     cost_price: this.fb.control(0, [Validators.required, Validators.min(0)]),
-    minimum_stock: this.fb.control(0, [Validators.required, Validators.min(0), integer]),
-    image: this.fb.control('', [httpUrl])
+    minimum_stock: this.fb.control(0, [Validators.required, Validators.min(0), integer])
   });
+
+  // --- imagen del producto (una sola; se sube a Supabase Storage al guardar) ---
+  readonly imageFile = signal<File | null>(null);
+  readonly imagePreview = signal<string | null>(null);
+  /** Imagen ya guardada en Supabase (modo edición); null si se quitó explícitamente. */
+  readonly existingImage = signal<string | null>(null);
+  readonly previewUrl = computed(() => this.imagePreview() ?? this.existingImage());
 
   // --- confirmación de borrado ---
   readonly deleteTarget = signal<ProductRow | null>(null);
@@ -125,14 +135,14 @@ export class Products {
   openCreate(): void {
     this.editing.set(null);
     this.formError.set('');
+    this.resetImage(null);
     this.form.reset({
       name: '',
       category_id: '',
       description: '',
       sale_price: 0,
       cost_price: 0,
-      minimum_stock: 0,
-      image: ''
+      minimum_stock: 0
     });
     this.formOpen.set(true);
   }
@@ -140,14 +150,14 @@ export class Products {
   openEdit(product: ProductRow): void {
     this.editing.set(product);
     this.formError.set('');
+    this.resetImage(product.image ?? null);
     this.form.reset({
       name: product.name,
       category_id: product.category_id != null ? String(product.category_id) : '',
       description: product.description ?? '',
       sale_price: product.sale_price,
       cost_price: product.cost_price,
-      minimum_stock: product.minimum_stock,
-      image: product.image ?? ''
+      minimum_stock: product.minimum_stock
     });
     this.formOpen.set(true);
   }
@@ -158,6 +168,48 @@ export class Products {
     }
   }
 
+  /** Selección de archivo desde el `<input type="file">`. Valida tipo y tamaño. */
+  onImageSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    input.value = '';
+    if (!file) {
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      this.formError.set('El archivo debe ser una imagen.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      this.formError.set('La imagen no puede superar 5 MB.');
+      return;
+    }
+    this.formError.set('');
+    this.imageFile.set(file);
+    this.setPreviewFrom(file);
+  }
+
+  /** Quita la imagen (nueva o ya guardada). Al guardar, `products.image` queda en null. */
+  clearImage(): void {
+    this.imageFile.set(null);
+    this.existingImage.set(null);
+    this.setPreviewFrom(null);
+  }
+
+  private resetImage(current: string | null): void {
+    this.imageFile.set(null);
+    this.existingImage.set(current);
+    this.setPreviewFrom(null);
+  }
+
+  private setPreviewFrom(file: File | null): void {
+    if (this.objectUrl) {
+      URL.revokeObjectURL(this.objectUrl);
+      this.objectUrl = null;
+    }
+    this.imagePreview.set(file ? (this.objectUrl = URL.createObjectURL(file)) : null);
+  }
+
   async submit(): Promise<void> {
     this.formError.set('');
     if (this.form.invalid || this.saving()) {
@@ -166,19 +218,24 @@ export class Products {
     }
 
     const raw = this.form.getRawValue();
-    const input: ProductInput = {
-      category_id: Number(raw.category_id),
-      name: raw.name,
-      description: raw.description,
-      sale_price: Number(raw.sale_price),
-      cost_price: Number(raw.cost_price),
-      minimum_stock: Number(raw.minimum_stock),
-      image: raw.image
-    };
+    const editing = this.editing();
+    const previousImage = editing?.image ?? null;
 
     this.saving.set(true);
     try {
-      const editing = this.editing();
+      const file = this.imageFile();
+      const image = file ? await this.storageApi.uploadProductImage(file) : this.existingImage();
+
+      const input: ProductInput = {
+        category_id: Number(raw.category_id),
+        name: raw.name,
+        description: raw.description,
+        sale_price: Number(raw.sale_price),
+        cost_price: Number(raw.cost_price),
+        minimum_stock: Number(raw.minimum_stock),
+        image
+      };
+
       if (editing) {
         const updated = await this.productsApi.update(editing.id, input);
         const row = this.decorate(updated);
@@ -193,6 +250,11 @@ export class Products {
         this.all.update((list) => [...list, this.decorate(created)].sort(byName));
         this.flash('Producto creado correctamente.', 'ok');
       }
+
+      if (previousImage && previousImage !== image) {
+        void this.storageApi.removeProductImage(previousImage);
+      }
+
       this.formOpen.set(false);
     } catch (err) {
       const dbError = err as DbError;
@@ -251,6 +313,7 @@ export class Products {
       await this.productsApi.remove(target.id);
       this.all.update((list) => list.filter((p) => p.id !== target.id));
       this.deleteTarget.set(null);
+      void this.storageApi.removeProductImage(target.image);
       this.flash('Producto eliminado.', 'ok');
     } catch (err) {
       const dbError = err as DbError;
@@ -296,19 +359,4 @@ function positive(control: AbstractControl): ValidationErrors | null {
 
 function integer(control: AbstractControl): ValidationErrors | null {
   return Number.isInteger(Number(control.value)) ? null : { integer: true };
-}
-
-function httpUrl(control: AbstractControl): ValidationErrors | null {
-  const value = (control.value ?? '').trim();
-  if (!value) {
-    return null;
-  }
-  try {
-    const url = new URL(value);
-    return url.protocol === 'http:' || url.protocol === 'https:'
-      ? null
-      : { url: true };
-  } catch {
-    return { url: true };
-  }
 }

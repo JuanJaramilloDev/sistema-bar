@@ -36,6 +36,8 @@ export class Auth {
   readonly role = computed<UserRole | null>(() => this._profile()?.role ?? null);
   readonly isAdmin = computed(() => this.role() === 'admin');
   readonly isEmployee = computed(() => this.role() === 'employee');
+  /** false solo cuando el perfil existe y `active === false`. Un admin lo desactivó. */
+  readonly isActive = computed(() => this._profile()?.active !== false);
 
   /** Nombre visible para el layout (Fase 2). */
   readonly displayName = computed(() => {

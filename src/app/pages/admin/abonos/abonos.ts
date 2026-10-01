@@ -1,6 +1,7 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { Sales as SalesApi } from '../../../core/services/sales';
+import { Realtime } from '../../../core/services/realtime';
 import { CurrencyPipe } from '../../../shared/pipes/currency-pipe';
 import { Loading } from '../../../shared/components/loading/loading';
 import { Empty } from '../../../shared/components/empty/empty';
@@ -25,6 +26,7 @@ type ViewState = 'loading' | 'ready' | 'error';
 export class Abonos {
 
   private readonly api = inject(SalesApi);
+  private readonly realtime = inject(Realtime);
 
   protected readonly methodLabel = paymentMethodLabel;
 
@@ -59,10 +61,23 @@ export class Abonos {
 
   constructor() {
     void this.load();
+
+    // Un abono registrado en otro dispositivo aparece solo, sin refrescar.
+    let first = true;
+    effect(() => {
+      this.realtime.salesTick();
+      if (first) {
+        first = false;
+        return;
+      }
+      void this.load();
+    });
   }
 
   async load(): Promise<void> {
-    this.state.set('loading');
+    if (this.state() !== 'ready') {
+      this.state.set('loading');
+    }
     try {
       this.rows.set(await this.api.abonosHistory(this.range(), ''));
       this.state.set('ready');

@@ -529,6 +529,27 @@ export class Sales {
     });
   }
 
+  /**
+   * Borra TODO el historial de ventas/líneas/pagos (abonos incluidos) y los
+   * movimientos de inventario que esas ventas generaron, vía la RPC
+   * `wipe_sales_data` (solo admin, verificado en el servidor). No toca
+   * productos, categorías, usuarios, clientes ni las existencias actuales de
+   * inventario (solo pone en 0 la cuenta pendiente de cada cliente).
+   * Irreversible: la pantalla de Reportes exige doble confirmación antes de
+   * llamar esto.
+   */
+  async wipeAll(): Promise<{ salesDeleted: number; paymentsDeleted: number }> {
+    const { data, error } = await this.db.rpc('wipe_sales_data');
+    if (error) {
+      throw error;
+    }
+    const r = (data ?? {}) as { sales_deleted?: number; payments_deleted?: number };
+    return {
+      salesDeleted: Number(r.sales_deleted ?? 0),
+      paymentsDeleted: Number(r.payments_deleted ?? 0)
+    };
+  }
+
   /** Total pagado por venta, para el conjunto de ids indicado. */
   private async paidBySale(saleIds: string[]): Promise<Map<string, number>> {
     const result = new Map<string, number>();

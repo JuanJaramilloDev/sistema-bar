@@ -11,17 +11,20 @@
   justify-content: center;
   padding: 40px 16px;
   overflow-y: auto;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(6, 5, 7, 0.68);
+  backdrop-filter: blur(3px);
   animation: modal-fade 0.12s ease;
 }
 
 .modal {
   width: 100%;
   max-width: 520px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-3);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 140px),
+    var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-3), var(--edge);
   animation: modal-rise 0.15s ease;
 }
 
@@ -30,13 +33,25 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 16px 18px;
+  padding: 15px 18px;
+  background: linear-gradient(180deg, var(--surface-2), transparent);
   border-bottom: 1px solid var(--border);
 }
 
+/* Misma jamba roja que los encabezados de panel. */
 .modal__title {
+  position: relative;
+  padding-left: 12px;
   font-size: 15px;
   font-weight: 700;
+}
+.modal__title::before {
+  content: "";
+  position: absolute;
+  inset: 2px auto 2px 0;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--accent);
 }
 
 .modal__close {

@@ -30,10 +30,13 @@ type Notice = { text: string; kind: 'ok' | 'err' };
  * Gestión de empleados (solo admin). Crear un usuario o cambiarle la
  * contraseña van por Edge Functions (`create-employee` /
  * `reset-employee-password`, verifican admin del lado del servidor);
- * renombrar es un update a `profiles` que la RLS solo permite al admin.
- * Angular nunca cambia el rol. No existe una forma de "desactivar" un
- * empleado (la tabla no tiene esa columna): para bloquearlo hay que
- * borrarlo desde Supabase Auth o cambiarle la contraseña aquí mismo.
+ * renombrar y activar/desactivar son un update a `profiles` que la RLS solo
+ * permite al admin. Angular nunca cambia el rol.
+ *
+ * No existe "eliminar" un empleado: para no arriesgar su historial de ventas
+ * o movimientos de inventario, en vez de borrar se desactiva (ver
+ * `toggleActive`) — le impide volver a entrar, sin tocar nada de lo que hizo.
+ * Solo aplica a empleados, nunca a un admin.
  */
 @Component({
   selector: 'app-admin-employees',
@@ -91,6 +94,9 @@ export class Employees {
   readonly passwordForm = this.fb.group({
     password: this.fb.control('', [Validators.required, Validators.minLength(6)])
   });
+
+  // --- activar/desactivar (solo empleados) ---
+  readonly busyId = signal<string | null>(null);
 
   constructor() {
     void this.load();
@@ -210,6 +216,31 @@ export class Employees {
     }
   }
 
+  /** Activa/desactiva a un empleado. No toca sus ventas ni su inventario. */
+  async toggleActive(profile: Profile): Promise<void> {
+    this.busyId.set(profile.id);
+    try {
+      await this.api.setActive(profile.id, !profile.active);
+      this.all.update((list) =>
+        list.map((p) => (p.id === profile.id ? { ...p, active: !p.active } : p))
+      );
+      this.flash(
+        profile.active
+          ? `${profile.name ?? 'El empleado'} ya no puede iniciar sesión.`
+          : `${profile.name ?? 'El empleado'} puede volver a iniciar sesión.`,
+        'ok'
+      );
+    } catch (err) {
+      console.error('[empleados] activar/desactivar:', err);
+      this.flash(
+        humanizeDbError(err as DbError, 'No fue posible cambiar el estado.'),
+        'err'
+      );
+    } finally {
+      this.busyId.set(null);
+    }
+  }
+
   dismissNotice(): void {
     this.notice.set(null);
   }
@@ -240,7 +271,7 @@ export class Employees {
         case 'UPDATE_FAILED':
           return 'No fue posible cambiar la contraseña. Inténtalo de nuevo.';
         default:
-          return 'No fue posible crear el empleado. Inténtalo de nuevo.';
+          return 'No fue posible completar la operación. Inténtalo de nuevo.';
       }
     }
     return humanizeDbError(err as DbError, 'No fue posible completar la operación.');
