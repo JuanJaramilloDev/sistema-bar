@@ -21,6 +21,11 @@ import { Loading } from '../../../shared/components/loading/loading';
 import { Empty } from '../../../shared/components/empty/empty';
 import { Icon } from '../../../shared/components/icon/icon';
 import type { Customer, CustomerInput } from '../../../core/models/customer';
+import {
+  PAYMENT_METHODS,
+  paymentMethodLabel,
+  type PaymentMethod
+} from '../../../core/models/payment';
 
 type ViewState = 'loading' | 'ready' | 'error';
 type Notice = { text: string; kind: 'ok' | 'err' };
@@ -33,8 +38,9 @@ type Notice = { text: string; kind: 'ok' | 'err' };
  * desde aquí.
  *
  * `cuenta` = saldo pendiente. Al crear se fija el saldo inicial; al editar
- * (admin) se puede sumar un cargo (nuevo consumo) y/o restar un abono
- * manual: `cuenta_nueva = max(0, cuenta + cargo - abono)`.
+ * (admin) se puede sumar un cargo (nuevo consumo) y/o registrar un abono.
+ * El abono pasa por la RPC `pay_customer_debt`, que lo aplica como pago a
+ * las ventas pendientes del cliente (no solo baja el número de la cuenta).
  */
 @Component({
   selector: 'app-customers',
@@ -86,8 +92,12 @@ export class Customers {
     notes: this.fb.control('', [Validators.maxLength(500)]),
     cuenta: this.fb.control(0, [Validators.min(0)]),
     cargo: this.fb.control(0, [Validators.min(0)]),
-    abono: this.fb.control(0, [Validators.min(0)])
+    abono: this.fb.control(0, [Validators.min(0)]),
+    abonoMethod: this.fb.control<PaymentMethod>('cash')
   });
+
+  protected readonly methods = PAYMENT_METHODS;
+  protected readonly methodLabel = paymentMethodLabel;
 
   private readonly cargoValue = toSignal(this.form.controls.cargo.valueChanges, {
     initialValue: 0 as number
@@ -110,7 +120,9 @@ export class Customers {
       cargo,
       abono,
       next,
-      delta: next - customer.cuenta
+      delta: next - customer.cuenta,
+      /** El abono no puede pasar de lo que se debe. */
+      abonoTooHigh: abono > customer.cuenta + cargo
     };
   });
 
@@ -137,7 +149,7 @@ export class Customers {
   openCreate(): void {
     this.editing.set(null);
     this.formError.set('');
-    this.form.reset({ name: '', phone: '', notes: '', cuenta: 0, cargo: 0, abono: 0 });
+    this.form.reset({ name: '', phone: '', notes: '', cuenta: 0, cargo: 0, abono: 0, abonoMethod: 'cash' });
     this.formOpen.set(true);
   }
 
@@ -150,7 +162,8 @@ export class Customers {
       notes: customer.notes ?? '',
       cuenta: customer.cuenta,
       cargo: 0,
-      abono: 0
+      abono: 0,
+      abonoMethod: 'cash'
     });
     this.formOpen.set(true);
   }
@@ -175,14 +188,23 @@ export class Customers {
       if (editing) {
         const cargo = positive(raw.cargo);
         const abono = positive(raw.abono);
-        const nextCuenta = Math.max(0, editing.cuenta + cargo - abono);
+        if (abono > editing.cuenta + cargo) {
+          this.formError.set('El abono no puede ser mayor a lo que debe el cliente.');
+          return;
+        }
+        // 1) datos + cargo; 2) el abono va por la RPC para que pague sus ventas.
         const input: CustomerInput = {
           name: raw.name,
           phone: raw.phone,
           notes: raw.notes,
-          cuenta: nextCuenta
+          cuenta: editing.cuenta + cargo
         };
-        const updated = await this.api.update(editing.id, input);
+        let updated = await this.api.update(editing.id, input);
+        if (abono > 0) {
+          const cuenta = await this.api.payDebt(editing.id, raw.abonoMethod, abono);
+          updated = { ...updated, cuenta };
+        }
+        const nextCuenta = updated.cuenta;
         this.all.update((list) =>
           [...list.map((c) => (c.id === updated.id ? updated : c))].sort(byName)
         );
@@ -209,7 +231,9 @@ export class Customers {
       const dbError = err as DbError;
       console.error('[clientes] guardar:', dbError);
       this.formError.set(
-        humanizeDbError(dbError, 'No fue posible guardar el cliente.')
+        /PAYMENT_EXCEEDS_PENDING/i.test(dbError.message ?? '')
+          ? 'El abono no puede ser mayor a lo que debe el cliente.'
+          : humanizeDbError(dbError, 'No fue posible guardar el cliente.')
       );
     } finally {
       this.saving.set(false);

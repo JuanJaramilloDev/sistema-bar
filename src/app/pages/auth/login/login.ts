@@ -11,6 +11,7 @@ import {
 } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Auth } from '../../../core/services/auth';
+import { LastRoute } from '../../../core/services/last-route';
 
 @Component({
   selector: 'app-login',
@@ -26,6 +27,7 @@ export class Login {
   private readonly auth = inject(Auth);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly lastRoute = inject(LastRoute);
 
   readonly loading = signal(false);
   readonly serverError = signal('');
@@ -95,7 +97,7 @@ export class Login {
         return;
       }
 
-      await this.router.navigateByUrl(this.destination());
+      await this.router.navigateByUrl(this.destination(), { skipLocationChange: true });
     } catch (err) {
       this.serverError.set(this.friendlyError(err));
     } finally {
@@ -103,17 +105,21 @@ export class Login {
     }
   }
 
-  /** Destino tras el login: respeta ?redirect= solo si es del área del rol. */
+  /**
+   * Destino tras el login: respeta ?redirect= y, si no, la última pantalla
+   * visitada (al recargar); ambos solo si son del área del rol.
+   */
   private destination(): string {
     const home = this.auth.isAdmin() ? '/admin' : '/employee';
-    const redirect = this.route.snapshot.queryParamMap.get('redirect');
+    const redirect =
+      this.route.snapshot.queryParamMap.get('redirect') ?? this.lastRoute.get();
     return redirect && redirect.startsWith(home) ? redirect : home;
   }
 
   private async redirectIfAuthenticated(): Promise<void> {
     await this.auth.ensureLoaded();
     if (this.auth.isAuthenticated() && this.auth.role()) {
-      await this.router.navigateByUrl(this.destination());
+      await this.router.navigateByUrl(this.destination(), { skipLocationChange: true });
     }
   }
 

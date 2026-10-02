@@ -10,7 +10,7 @@ export type UserRole = 'admin' | 'employee';
  * `active` (boolean, default true): desactivar a un empleado NO borra nada
  * de lo que hizo (ventas, movimientos de inventario) — solo le impide volver
  * a entrar. Lo aplica `roleGuard` (y el login) comprobando `active === false`
- * y cerrando la sesión. Ver `supabase/sql/fix-09-employee-active.sql`.
+ * y cerrando la sesión. Ver `supabase/sql/setup-completo.sql` (sección 7).
  *
  * SEGURIDAD: esto es un candado de navegación, igual que el resto de `role()`.
  * Una sesión YA abierta (token todavía válido) no se corta al instante si se

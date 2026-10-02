@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Supabase, assertAffected } from './supabase';
 import type { Customer, CustomerInput } from '../models/customer';
+import type { PaymentMethod } from '../models/payment';
 
 /**
  * Acceso a `customers`. Toda comunicación con Supabase pasa por aquí.
@@ -9,9 +10,9 @@ import type { Customer, CustomerInput } from '../models/customer';
  *   - empleado y admin: consultar, crear, editar
  *   - solo admin: eliminar
  *
- * Abonos: por ahora la página recalcula `cuenta` (cuenta - abono) y llama a
- * `update()`. Cuando el reporte final necesite sumar los abonos históricos se
- * añadirá una RPC `register_customer_abono` (tabla `customer_abonos`).
+ * Abonos del admin: `payDebt()` (RPC `pay_customer_debt`) reparte el abono
+ * entre las ventas pendientes del cliente como pagos reales y baja `cuenta`.
+ * Así el historial, los dashboards y los reportes ven la venta pagada.
  */
 @Injectable({ providedIn: 'root' })
 export class Customers {
@@ -62,6 +63,24 @@ export class Customers {
       throw error;
     }
     return data;
+  }
+
+  /**
+   * Abono del admin a la cuenta del cliente. Paga sus ventas pendientes de la
+   * más vieja a la más nueva; lo que sobre (saldo cargado a mano) solo baja la
+   * cuenta. No puede superar la cuenta. Devuelve la cuenta nueva.
+   */
+  async payDebt(customerId: number, method: PaymentMethod, amount: number): Promise<number> {
+    const { data, error } = await this.db.rpc('pay_customer_debt', {
+      p_customer_id: customerId,
+      p_method: method,
+      p_amount: Math.round(amount)
+    });
+
+    if (error) {
+      throw error;
+    }
+    return Number((data as { cuenta?: number } | null)?.cuenta ?? 0);
   }
 
   /**

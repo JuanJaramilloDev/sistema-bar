@@ -6,7 +6,7 @@ import {
   inject,
   signal
 } from '@angular/core';
-import { DatePipe } from '@angular/common';
+import { DatePipe, NgTemplateOutlet } from '@angular/common';
 import { Auth } from '../../../core/services/auth';
 import { Sales as SalesApi } from '../../../core/services/sales';
 import { Products } from '../../../core/services/products';
@@ -42,6 +42,147 @@ type Tab = 'register' | 'list';
 /** Ya no existe "fiado": solo pago completo o abono parcial (siempre > 0). */
 type PayMode = 'full' | 'custom';
 
+/** Pago adicional (cuando se divide el cobro entre varios métodos). */
+interface ExtraPay {
+  method: PaymentMethod;
+  amount: number;
+}
+
+/**
+ * Estado del cobro de una venta: un método principal y, opcionalmente, otros
+ * métodos para dividir el pago (ej. parte en efectivo y parte por
+ * transferencia). Se usa igual al registrar y al editar una venta.
+ *
+ * - Sin métodos extra: funciona como siempre (pago completo o abono parcial).
+ * - Con métodos extra y "Pago completo": el principal se calcula solo
+ *   (total − los demás); con "Abono parcial" todos los montos se escriben.
+ */
+class PaySplit {
+  readonly mode = signal<PayMode>('full');
+  readonly method = signal<PaymentMethod>('cash');
+  readonly customAmount = signal(0);
+  readonly extras = signal<ExtraPay[]>([]);
+
+  readonly splitting = computed(() => this.extras().length > 0);
+  readonly canAdd = computed(() => this.extras().length < PAYMENT_METHODS.length - 1);
+  /** El monto del principal no se escribe: es lo que falta para el total. */
+  readonly primaryAuto = computed(() => this.splitting() && this.mode() === 'full');
+
+  private readonly extrasSum = computed(() =>
+    this.extras().reduce((a, x) => a + x.amount, 0)
+  );
+
+  readonly primaryAmount = computed(() => {
+    const total = this.total();
+    if (this.mode() === 'full') {
+      return this.splitting() ? Math.max(0, total - this.extrasSum()) : total;
+    }
+    const amount = clampMoney(this.customAmount());
+    return this.splitting() ? amount : Math.min(total, amount);
+  });
+
+  readonly paid = computed(() => this.primaryAmount() + this.extrasSum());
+  readonly pending = computed(() => Math.max(0, this.total() - this.paid()));
+
+  /** Mensaje de validación del cobro ('' = válido). Ya no existe "fiado". */
+  readonly error = computed(() => {
+    const total = this.total();
+    if (total <= 0) {
+      return '';
+    }
+    if (this.extras().some((x) => x.amount <= 0)) {
+      return 'Escribe el monto de cada método.';
+    }
+    const over = this.mode() === 'full'
+      ? this.splitting() && this.extrasSum() >= total
+      : this.paid() > total;
+    if (over) {
+      return 'Los montos superan el total de la venta.';
+    }
+    if (this.primaryAmount() <= 0) {
+      return this.splitting() ? 'Escribe el monto de cada método.' : 'El abono debe ser mayor a 0.';
+    }
+    return '';
+  });
+  readonly invalid = computed(() => this.error() !== '');
+
+  constructor(private readonly total: () => number) {}
+
+  /** true si el método ya lo usa otra fila (`row` = -1 para el principal). */
+  taken(method: PaymentMethod, row: number): boolean {
+    return (row !== -1 && this.method() === method) ||
+      this.extras().some((x, i) => i !== row && x.method === method);
+  }
+
+  setMode(mode: PayMode): void {
+    this.mode.set(mode);
+    if (mode === 'custom' && this.customAmount() === 0) {
+      this.customAmount.set(this.splitting() ? this.primaryAmount() : this.total());
+    }
+  }
+
+  setMethod(value: string): void {
+    this.method.set(value as PaymentMethod);
+  }
+
+  setAmount(value: string): void {
+    this.customAmount.set(clampMoney(Number(value)));
+  }
+
+  add(): void {
+    const free = PAYMENT_METHODS.find((m) => !this.taken(m, this.extras().length));
+    if (!free || !this.canAdd()) {
+      return;
+    }
+    if (this.mode() === 'custom' && !this.splitting()) {
+      this.customAmount.set(this.primaryAmount());
+    }
+    this.extras.update((list) => [...list, { method: free, amount: 0 }]);
+  }
+
+  remove(index: number): void {
+    this.extras.update((list) => list.filter((_, i) => i !== index));
+  }
+
+  setExtraMethod(index: number, value: string): void {
+    this.extras.update((list) =>
+      list.map((x, i) => (i === index ? { ...x, method: value as PaymentMethod } : x))
+    );
+  }
+
+  setExtraAmount(index: number, value: string): void {
+    this.extras.update((list) =>
+      list.map((x, i) => (i === index ? { ...x, amount: clampMoney(Number(value)) } : x))
+    );
+  }
+
+  /** Pagos a enviar a la RPC: el principal + los extra. */
+  payments(): ExtraPay[] {
+    return [{ method: this.method(), amount: this.primaryAmount() }, ...this.extras()];
+  }
+
+  reset(): void {
+    this.mode.set('full');
+    this.customAmount.set(0);
+    this.extras.set([]);
+  }
+
+  /** Carga los pagos ya registrados de una venta (para editarla). */
+  load(payments: ExtraPay[], total: number): void {
+    const byMethod = new Map<PaymentMethod, number>();
+    for (const p of payments) {
+      byMethod.set(p.method, (byMethod.get(p.method) ?? 0) + p.amount);
+    }
+    const list = [...byMethod].map(([method, amount]) => ({ method, amount }));
+    const paid = list.reduce((a, p) => a + p.amount, 0);
+
+    this.method.set(list[0]?.method ?? 'cash');
+    this.customAmount.set(list[0]?.amount ?? 0);
+    this.extras.set(list.slice(1));
+    this.mode.set(paid >= total && paid > 0 ? 'full' : 'custom');
+  }
+}
+
 /** Producto del catálogo con su existencia actual (para la pantalla de venta). */
 interface CatalogEntry {
   id: number;
@@ -74,7 +215,7 @@ interface CatalogGroup {
  */
 @Component({
   selector: 'app-sales',
-  imports: [DatePipe, CurrencyPipe, Modal, Loading, Empty, Icon],
+  imports: [DatePipe, NgTemplateOutlet, CurrencyPipe, Modal, Loading, Empty, Icon],
   templateUrl: './sales.html',
   styleUrl: './sales.css',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -111,9 +252,8 @@ export class Sales {
   readonly cart = signal<CartLine[]>([]);
   readonly discount = signal(0);
   readonly customerId = signal<number | null>(null);
-  readonly payMode = signal<PayMode>('full');
-  readonly payMethod = signal<PaymentMethod>('cash');
-  readonly customAmount = signal(0);
+  /** Cobro de la venta nueva (uno o varios métodos). */
+  readonly pay = new PaySplit(() => this.total());
 
   readonly saving = signal(false);
   readonly formError = signal('');
@@ -164,23 +304,14 @@ export class Sales {
     Math.max(0, this.subtotal() - clampMoney(this.discount()))
   );
 
-  readonly paidAmount = computed(() =>
-    this.payMode() === 'full'
-      ? this.total()
-      : Math.min(this.total(), clampMoney(this.customAmount()))
-  );
-
-  readonly pending = computed(() => Math.max(0, this.total() - this.paidAmount()));
-  readonly customerRequired = computed(() => this.pending() > 0);
+  readonly customerRequired = computed(() => this.pay.pending() > 0);
   readonly discountInvalid = computed(() => clampMoney(this.discount()) > this.subtotal());
-  /** Ya no existe "fiado": el pago siempre debe ser mayor que 0. */
-  readonly paymentInvalid = computed(() => this.total() > 0 && this.paidAmount() <= 0);
 
   readonly canSubmit = computed(() => {
     if (this.cart().length === 0 || this.saving()) {
       return false;
     }
-    if (this.discountInvalid() || this.paymentInvalid()) {
+    if (this.discountInvalid() || this.pay.invalid()) {
       return false;
     }
     if (this.cart().some((l) => l.quantity > l.available)) {
@@ -233,14 +364,57 @@ export class Sales {
   readonly detailCache = signal<Record<string, SaleDetail>>({});
   readonly detailLoadingId = signal<string | null>(null);
 
+  // --- devolución de una venta (solo admin) ---
+  readonly returnSale = signal<SaleListRow | null>(null);
+  readonly returnDetail = signal<SaleDetail | null>(null);
+  /** productId -> cantidad a devolver */
+  readonly returnQty = signal<Record<number, number>>({});
+  readonly returnReason = signal('');
+  readonly returnMethod = signal<PaymentMethod>('cash');
+  readonly returnSaving = signal(false);
+  readonly returnError = signal('');
+
+  /**
+   * Vista previa con la MISMA cuenta que hace la RPC `return_sale`: el
+   * descuento se reparte proporcional a lo que queda; primero se descuenta
+   * el saldo pendiente y solo lo pagado de más se le devuelve al cliente.
+   */
+  readonly returnPreview = computed(() => {
+    const d = this.returnDetail();
+    if (!d) {
+      return null;
+    }
+    const qty = this.returnQty();
+    const value = d.items.reduce((a, it) => a + it.unitPrice * (qty[it.productId] ?? 0), 0);
+    const newSubtotal = Math.max(0, d.subtotal - value);
+    const newDiscount = d.subtotal > 0 ? Math.round((d.discount * newSubtotal) / d.subtotal) : 0;
+    const newTotal = newSubtotal - newDiscount;
+    const paid = d.payments.reduce((a, p) => a + p.amount, 0);
+    const refund = Math.max(0, paid - newTotal);
+    const oldPending = Math.max(0, d.total - paid);
+    const newPending = Math.max(0, newTotal - (paid - refund));
+    return {
+      value,
+      newTotal,
+      refund,
+      pendingCut: oldPending - newPending,
+      all: value > 0 && newSubtotal === 0
+    };
+  });
+  readonly returnCanSave = computed(
+    () =>
+      !this.returnSaving() &&
+      (this.returnPreview()?.value ?? 0) > 0 &&
+      this.returnReason().trim().length > 0
+  );
+
   // --- edición de una venta (solo admin) ---
   readonly editSale = signal<SaleListRow | null>(null);
   readonly editItems = signal<CartLine[]>([]);
   readonly editDiscount = signal(0);
   readonly editCustomerId = signal<number | null>(null);
-  readonly editPayMode = signal<PayMode>('full');
-  readonly editPayMethod = signal<PaymentMethod>('cash');
-  readonly editAmount = signal(0);
+  /** Cobro de la venta en edición (uno o varios métodos). */
+  readonly editPay = new PaySplit(() => this.editTotal());
   readonly editSaving = signal(false);
   readonly editError = signal('');
 
@@ -250,21 +424,15 @@ export class Sales {
   readonly editTotal = computed(() =>
     Math.max(0, this.editSubtotal() - clampMoney(this.editDiscount()))
   );
-  readonly editPaid = computed(() =>
-    this.editPayMode() === 'full'
-      ? this.editTotal()
-      : Math.min(this.editTotal(), clampMoney(this.editAmount()))
-  );
-  readonly editPending = computed(() => Math.max(0, this.editTotal() - this.editPaid()));
+  readonly editPending = computed(() => this.editPay.pending());
   readonly editDiscountInvalid = computed(
     () => clampMoney(this.editDiscount()) > this.editSubtotal()
   );
-  readonly editPaymentInvalid = computed(() => this.editTotal() > 0 && this.editPaid() <= 0);
   readonly editCanSave = computed(() => {
     if (this.editSaving() || this.editItems().every((l) => l.quantity <= 0)) {
       return false;
     }
-    if (this.editDiscountInvalid() || this.editPaymentInvalid()) {
+    if (this.editDiscountInvalid() || this.editPay.invalid()) {
       return false;
     }
     if (this.editItems().some((l) => l.quantity > l.available)) {
@@ -408,8 +576,7 @@ export class Sales {
     this.cart.set([]);
     this.discount.set(0);
     this.customerId.set(null);
-    this.payMode.set('full');
-    this.customAmount.set(0);
+    this.pay.reset();
     this.formError.set('');
   }
 
@@ -419,23 +586,8 @@ export class Sales {
     this.discount.set(clampMoney(Number(value)));
   }
 
-  onCustomAmount(value: string): void {
-    this.customAmount.set(clampMoney(Number(value)));
-  }
-
   onCustomer(value: string): void {
     this.customerId.set(value ? Number(value) : null);
-  }
-
-  setPayMode(mode: PayMode): void {
-    this.payMode.set(mode);
-    if (mode === 'custom' && this.customAmount() === 0) {
-      this.customAmount.set(this.total());
-    }
-  }
-
-  setMethod(value: string): void {
-    this.payMethod.set(value as PaymentMethod);
   }
 
   // ------------------------------------------------------------- registrar ---
@@ -461,7 +613,7 @@ export class Sales {
           quantity: l.quantity,
           unit_price: l.unitPrice
         })),
-        payment: { method: this.payMethod(), amount: this.paidAmount() }
+        payments: this.pay.payments()
       });
       this.lastSale.set(result);
       this.clearCart();
@@ -544,6 +696,97 @@ export class Sales {
     }
   }
 
+  // ---------------------------------------------------------- devolución ---
+
+  async openReturn(sale: SaleListRow): Promise<void> {
+    this.returnSale.set(sale);
+    this.returnDetail.set(null);
+    this.returnQty.set({});
+    this.returnReason.set('');
+    this.returnError.set('');
+    try {
+      const detail = await this.api.detail(sale.id);
+      this.returnDetail.set(detail);
+      this.returnMethod.set(detail.payments.find((p) => p.amount > 0)?.method ?? 'cash');
+    } catch (err) {
+      console.error('[ventas] abrir devolución:', err);
+      this.returnError.set('No fue posible cargar la venta.');
+    }
+  }
+
+  closeReturn(): void {
+    if (!this.returnSaving()) {
+      this.returnSale.set(null);
+    }
+  }
+
+  returnSetQty(productId: number, value: string | number): void {
+    const sold = this.returnDetail()?.items.find((it) => it.productId === productId)?.quantity ?? 0;
+    const q = Math.trunc(Number(value));
+    const next = Number.isFinite(q) ? Math.max(0, Math.min(sold, q)) : 0;
+    this.returnQty.update((m) => ({ ...m, [productId]: next }));
+  }
+
+  returnStep(productId: number, delta: number): void {
+    this.returnSetQty(productId, (this.returnQty()[productId] ?? 0) + delta);
+  }
+
+  /** Marca todas las cantidades vendidas (devolución total). */
+  returnAll(): void {
+    const items = this.returnDetail()?.items ?? [];
+    this.returnQty.set(Object.fromEntries(items.map((it) => [it.productId, it.quantity])));
+  }
+
+  async submitReturn(): Promise<void> {
+    const sale = this.returnSale();
+    this.returnError.set('');
+    if (!sale || !this.returnCanSave()) {
+      if (!this.returnReason().trim()) {
+        this.returnError.set('Escribe el motivo de la devolución.');
+      } else if (!(this.returnPreview()?.value ?? 0)) {
+        this.returnError.set('Elige al menos un producto y la cantidad a devolver.');
+      }
+      return;
+    }
+
+    this.returnSaving.set(true);
+    try {
+      const qty = this.returnQty();
+      const result = await this.api.returnSale({
+        saleId: sale.id,
+        items: Object.entries(qty).map(([productId, quantity]) => ({
+          productId: Number(productId),
+          quantity
+        })),
+        reason: this.returnReason(),
+        refundMethod: this.returnMethod()
+      });
+      this.returnSale.set(null);
+      this.detailCache.update((c) => {
+        const next = { ...c };
+        delete next[sale.id];
+        return next;
+      });
+      this.expandedId.set(null);
+      this.listLoaded = false;
+      await this.loadList();
+      void this.loadCatalog();
+      const label = sale.invoiceNumber ? ` #${sale.invoiceNumber}` : '';
+      this.flash(
+        result.refund > 0
+          ? `Devolución registrada en la venta${label}. Devolver al cliente: ${formatCop(result.refund)}.`
+          : `Devolución registrada en la venta${label}.`,
+        'ok'
+      );
+    } catch (err) {
+      const dbError = err as DbError;
+      console.error('[ventas] devolución:', dbError);
+      this.returnError.set(friendlySaleError(dbError));
+    } finally {
+      this.returnSaving.set(false);
+    }
+  }
+
   // ------------------------------------------------------------- edición ---
 
   async openEdit(sale: SaleListRow): Promise<void> {
@@ -575,10 +818,7 @@ export class Sales {
       this.editDiscount.set(detail.discount);
       this.editCustomerId.set(detail.customerId);
 
-      const paid = detail.payments.reduce((a, p) => a + p.amount, 0);
-      this.editPayMethod.set(detail.payments[0]?.method ?? 'cash');
-      this.editAmount.set(paid);
-      this.editPayMode.set(paid >= detail.total && paid > 0 ? 'full' : 'custom');
+      this.editPay.load(detail.payments, detail.total);
     } catch (err) {
       console.error('[ventas] abrir edición:', err);
       this.editError.set('No fue posible cargar la venta para editar.');
@@ -615,20 +855,8 @@ export class Sales {
   editOnDiscount(value: string): void {
     this.editDiscount.set(clampMoney(Number(value)));
   }
-  editOnAmount(value: string): void {
-    this.editAmount.set(clampMoney(Number(value)));
-  }
   editOnCustomer(value: string): void {
     this.editCustomerId.set(value ? Number(value) : null);
-  }
-  editSetPayMode(mode: PayMode): void {
-    this.editPayMode.set(mode);
-    if (mode === 'custom' && this.editAmount() === 0) {
-      this.editAmount.set(this.editTotal());
-    }
-  }
-  editSetMethod(value: string): void {
-    this.editPayMethod.set(value as PaymentMethod);
   }
 
   async submitEdit(): Promise<void> {
@@ -658,7 +886,7 @@ export class Sales {
             quantity: l.quantity,
             unit_price: l.unitPrice
           })),
-        payment: { method: this.editPayMethod(), amount: this.editPaid() }
+        payments: this.editPay.payments()
       });
       this.editSale.set(null);
       this.detailCache.update((c) => {
@@ -713,13 +941,38 @@ function clampMoney(value: unknown): number {
   return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
 }
 
+const COP = new Intl.NumberFormat('es-CO', {
+  style: 'currency',
+  currency: 'COP',
+  maximumFractionDigits: 0
+});
+
+function formatCop(value: number): string {
+  return COP.format(value);
+}
+
 function friendlySaleError(error: DbError): string {
   const message = (error.message ?? '').toUpperCase();
+  if (message.includes('REASON_REQUIRED')) {
+    return 'Escribe el motivo de la devolución.';
+  }
+  if (message.includes('EMPTY_RETURN')) {
+    return 'Elige al menos un producto y la cantidad a devolver.';
+  }
+  if (message.includes('ALREADY_RETURNED')) {
+    return 'Esta venta ya fue devuelta por completo.';
+  }
+  if (message.includes('PRODUCT_NOT_IN_SALE') || message.includes('RETURN_EXCEEDS_SOLD')) {
+    return 'La cantidad a devolver no coincide con lo vendido. Vuelve a abrir la venta.';
+  }
+  if (message.includes('HAS_RETURNS')) {
+    return 'Esta venta ya tiene devoluciones y no se puede editar.';
+  }
   if (message.includes('AUTH_REQUIRED')) {
     return 'Tu sesión expiró. Vuelve a iniciar sesión.';
   }
   if (message.includes('NOT_ADMIN')) {
-    return 'Solo un administrador puede editar ventas.';
+    return 'Solo un administrador puede editar o devolver ventas.';
   }
   if (message.includes('SALE_NOT_FOUND')) {
     return 'La venta ya no existe.';
@@ -740,10 +993,13 @@ function friendlySaleError(error: DbError): string {
     return 'El descuento no es válido para esta venta.';
   }
   if (message.includes('INVALID_PAYMENT') || message.includes('PAYMENT_EXCEEDS_TOTAL')) {
-    return 'El monto pagado no es válido.';
+    return 'El monto pagado no es válido o supera el total.';
   }
   if (message.includes('PAYMENT_REQUIRED')) {
     return 'Debes registrar un pago mayor a 0: ya no se permite dejar la venta fiada.';
+  }
+  if (message.includes('DUPLICATE_METHOD')) {
+    return 'No repitas el mismo método de pago.';
   }
   if (message.includes('INVALID_METHOD')) {
     return 'El método de pago no es válido.';

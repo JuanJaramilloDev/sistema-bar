@@ -17,7 +17,7 @@ import { Supabase } from './supabase';
  * nuevo a Supabase, que sigue siendo la única fuente de verdad.
  *
  * Requiere que las tablas estén agregadas a la publicación `supabase_realtime`
- * en Supabase — ver `supabase/sql/fix-08-realtime.sql`.
+ * en Supabase — ver `supabase/sql/setup-completo.sql` (sección 6).
  */
 @Injectable({ providedIn: 'root' })
 export class Realtime {

@@ -1,5 +1,5 @@
 import { inject } from '@angular/core';
-import { CanMatchFn, Route, Router, UrlSegment, UrlTree } from '@angular/router';
+import { CanMatchFn, RedirectCommand, Route, Router, UrlSegment } from '@angular/router';
 import { Auth } from '../services/auth';
 
 /**
@@ -11,7 +11,7 @@ import { Auth } from '../services/auth';
 export const authGuard: CanMatchFn = async (
   _route: Route,
   segments: UrlSegment[]
-): Promise<boolean | UrlTree> => {
+): Promise<boolean | RedirectCommand> => {
   const auth = inject(Auth);
   const router = inject(Router);
 
@@ -22,7 +22,7 @@ export const authGuard: CanMatchFn = async (
   }
 
   const attempted = '/' + segments.map((s) => s.path).join('/');
-  return router.createUrlTree(['/login'], {
+  return new RedirectCommand(router.createUrlTree(['/login'], {
     queryParams: attempted && attempted !== '/' ? { redirect: attempted } : {}
-  });
+  }), { skipLocationChange: true });
 };

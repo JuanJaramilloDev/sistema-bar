@@ -57,7 +57,7 @@
           } @else if (filtered().length === 0) {
             <app-empty title="Ningún cliente coincide con la búsqueda" />
           } @else {
-            <div class="table-wrap">
+            <div class="table-wrap table-wrap--scroll">
               <table class="table">
                 <thead>
                   <tr>
@@ -208,6 +208,18 @@
         </div>
       </div>
 
+      @if (cuentaPreview()?.abono) {
+        <div class="field">
+          <label for="c-abono-method">Método del abono</label>
+          <select id="c-abono-method" class="select" formControlName="abonoMethod">
+            @for (m of methods; track m) {
+              <option [value]="m">{{ methodLabel(m) }}</option>
+            }
+          </select>
+          <span class="hint">Se aplica a sus ventas pendientes, de la más vieja a la más nueva.</span>
+        </div>
+      }
+
       @if (cuentaPreview(); as preview) {
         @if (preview.cargo > 0 || preview.abono > 0) {
           <div class="op-preview">
@@ -221,6 +233,9 @@
               [class.op-preview__delta--zero]="preview.delta === 0"
             >{{ preview.delta > 0 ? '+' : (preview.delta < 0 ? '−' : '') }}{{ (preview.delta < 0 ? -preview.delta : preview.delta) | currency }}</span>
           </div>
+          @if (preview.abonoTooHigh) {
+            <span class="field-error">El abono no puede ser mayor a lo que debe el cliente.</span>
+          }
         }
       }
     }

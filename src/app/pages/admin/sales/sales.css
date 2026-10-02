@@ -341,13 +341,54 @@
   box-shadow: var(--shadow-1);
 }
 
-.cobro__pay {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+/* Cobro con uno o varios métodos */
+.pay__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
-.cobro__pay .field:only-child {
-  grid-column: 1 / -1;
+.pay__method {
+  flex: 0 0 auto;
+  width: 9.5rem;
+  max-width: 50%;
+}
+.pay__amount {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.pay__amount[readonly] {
+  color: var(--text-muted);
+}
+.pay__remove {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.pay__remove:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.pay__add {
+  align-self: flex-start;
+  border: none;
+  background: transparent;
+  padding: 2px 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.pay__add:hover {
+  color: var(--accent);
+  text-decoration: underline;
 }
 
 .btn-block {
@@ -457,3 +498,4 @@
   font-size: 13px;
   color: var(--text-dim);
 }
+

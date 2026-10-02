@@ -8,6 +8,7 @@ import {
 } from '@angular/core';
 import { Router } from '@angular/router';
 import { Auth } from '../../../core/services/auth';
+import { LastRoute } from '../../../core/services/last-route';
 
 /**
  * Barra superior. Muestra el nombre del sistema, el usuario actual y su rol,
@@ -25,6 +26,7 @@ export class Navbar {
 
   private readonly auth = inject(Auth);
   private readonly router = inject(Router);
+  private readonly lastRoute = inject(LastRoute);
 
   /** Pide al layout abrir/cerrar el sidebar (solo relevante en móvil/tablet). */
   readonly menuToggle = output<void>();
@@ -40,12 +42,13 @@ export class Navbar {
       return;
     }
     this.loggingOut.set(true);
+    this.lastRoute.clear();
     try {
       await this.auth.signOut();
-      await this.router.navigateByUrl('/login');
+      await this.router.navigateByUrl('/login', { skipLocationChange: true });
     } catch {
       // signOut local no debería fallar; si lo hace, forzamos ir al login.
-      await this.router.navigateByUrl('/login');
+      await this.router.navigateByUrl('/login', { skipLocationChange: true });
     } finally {
       this.loggingOut.set(false);
     }

@@ -10,6 +10,7 @@
         <a
           class="sidebar__link"
           [routerLink]="item.path"
+          skipLocationChange
           routerLinkActive="is-active"
           (click)="navigate.emit()"
         >

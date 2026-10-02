@@ -1,5 +1,5 @@
 import { inject } from '@angular/core';
-import { CanMatchFn, Route, Router, UrlTree } from '@angular/router';
+import { CanMatchFn, RedirectCommand, Route, Router } from '@angular/router';
 import { Auth } from '../services/auth';
 import type { UserRole } from '../models/user';
 
@@ -24,7 +24,7 @@ import type { UserRole } from '../models/user';
  */
 export const roleGuard: CanMatchFn = async (
   route: Route
-): Promise<boolean | UrlTree> => {
+): Promise<boolean | RedirectCommand> => {
   const auth = inject(Auth);
   const router = inject(Router);
 
@@ -32,16 +32,16 @@ export const roleGuard: CanMatchFn = async (
 
   const role = auth.role();
   if (!role) {
-    return router.createUrlTree(['/login'], {
+    return new RedirectCommand(router.createUrlTree(['/login'], {
       queryParams: { reason: 'no-profile' }
-    });
+    }), { skipLocationChange: true });
   }
 
   if (!auth.isActive()) {
     await auth.signOut();
-    return router.createUrlTree(['/login'], {
+    return new RedirectCommand(router.createUrlTree(['/login'], {
       queryParams: { reason: 'disabled' }
-    });
+    }), { skipLocationChange: true });
   }
 
   const required = route.data?.['role'] as UserRole | UserRole[] | undefined;
@@ -51,5 +51,5 @@ export const roleGuard: CanMatchFn = async (
     return true;
   }
 
-  return router.createUrlTree([role === 'admin' ? '/admin' : '/employee']);
+  return new RedirectCommand(router.createUrlTree([role === 'admin' ? '/admin' : '/employee']), { skipLocationChange: true });
 };

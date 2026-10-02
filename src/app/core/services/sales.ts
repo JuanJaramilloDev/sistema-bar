@@ -9,6 +9,10 @@ import type {
   PaymentStatus,
   PendingSaleRow,
   RecentSale,
+  ReturnSaleInput,
+  ReturnSaleResult,
+  SaleDbStatus,
+  SaleReturnRow,
   SaleDetail,
   SaleListRow,
   SalesRange,
@@ -65,8 +69,7 @@ export class Sales {
       p_customer_id: input.customerId ? Number(input.customerId) : null,
       p_discount: Math.max(0, Math.round(Number(input.discount) || 0)),
       p_items: items,
-      p_method: input.payment.method,
-      p_amount: Math.round(Number(input.payment.amount))
+      p_payments: toPaymentsParam(input.payments)
     });
 
     if (error) {
@@ -83,7 +86,7 @@ export class Sales {
   async list(range: SalesRange = 'week', search = ''): Promise<SaleListRow[]> {
     let query = this.db
       .from('sales')
-      .select('id, invoice_number, subtotal, discount, total, customer_id, user_id, created_at')
+      .select('id, invoice_number, subtotal, discount, total, status, customer_id, user_id, created_at')
       .order('created_at', { ascending: false })
       .limit(500);
 
@@ -99,6 +102,7 @@ export class Sales {
         subtotal: number | null;
         discount: number | null;
         total: number | null;
+        status: SaleDbStatus | null;
         customer_id: number | null;
         user_id: string | null;
         created_at: string;
@@ -114,10 +118,11 @@ export class Sales {
       return [];
     }
 
-    const [employees, customers, paidByMethod] = await Promise.all([
+    const [employees, customers, paidByMethod, withReturns] = await Promise.all([
       this.namesFrom('profiles', unique(rows.map((r) => r.user_id))),
       this.namesFrom('customers', unique(rows.map((r) => r.customer_id))),
-      this.paidByMethod(rows.map((r) => r.id))
+      this.paidByMethod(rows.map((r) => r.id)),
+      this.salesWithReturns(rows.map((r) => r.id))
     ]);
 
     const term = search.trim().toLowerCase();
@@ -139,6 +144,8 @@ export class Sales {
           paid,
           pending: Math.max(0, total - paid),
           status: derivePaymentStatus(total, paid),
+          dbStatus: r.status ?? 'completed',
+          hasReturns: withReturns.has(r.id),
           customerId: r.customer_id,
           createdAt: r.created_at,
           employeeName: r.user_id ? employees.get(r.user_id) ?? null : null,
@@ -188,12 +195,15 @@ export class Sales {
         .from('payments')
         .select('payment_method, amount')
         .eq('sale_id', saleId)
+        .order('created_at', { ascending: true })
         .returns<{ payment_method: PaymentMethod; amount: number | null }[]>()
     ]);
 
     if (sale.error) throw sale.error;
     if (items.error) throw items.error;
     if (payments.error) throw payments.error;
+
+    const returns = await this.returnsOf(saleId);
 
     return {
       saleId,
@@ -212,8 +222,114 @@ export class Sales {
       payments: (payments.data ?? []).map((p) => ({
         method: p.payment_method,
         amount: p.amount ?? 0
-      }))
+      })),
+      returns
     };
+  }
+
+  /**
+   * Devolución total o parcial de una venta (solo admin; la RPC lo verifica).
+   * Devuelve el stock, recalcula la venta, registra el reembolso (pago
+   * negativo) y deja el historial con el admin y el motivo.
+   */
+  async returnSale(input: ReturnSaleInput): Promise<ReturnSaleResult> {
+    const { data, error } = await this.db.rpc('return_sale', {
+      p_sale_id: input.saleId,
+      p_items: input.items
+        .filter((i) => i.quantity > 0)
+        .map((i) => ({ product_id: Number(i.productId), quantity: Math.trunc(i.quantity) })),
+      p_reason: input.reason.trim(),
+      p_refund_method: input.refundMethod
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    const r = (data ?? {}) as {
+      items_value?: number;
+      refund?: number;
+      new_total?: number;
+      pending?: number;
+      cancelled?: boolean;
+    };
+    return {
+      itemsValue: Number(r.items_value ?? 0),
+      refund: Number(r.refund ?? 0),
+      newTotal: Number(r.new_total ?? 0),
+      pending: Number(r.pending ?? 0),
+      cancelled: Boolean(r.cancelled)
+    };
+  }
+
+  /** Historial de devoluciones de una venta, con el admin que las hizo. */
+  private async returnsOf(saleId: string): Promise<SaleReturnRow[]> {
+    const { data, error } = await this.db
+      .from('sale_returns')
+      .select(
+        'id, user_id, reason, items_value, refund_amount, refund_method, created_at, ' +
+          'sale_return_items(quantity, unit_price, products(name))'
+      )
+      .eq('sale_id', saleId)
+      .order('created_at', { ascending: true })
+      .returns<
+        {
+          id: number;
+          user_id: string | null;
+          reason: string;
+          items_value: number | null;
+          refund_amount: number | null;
+          refund_method: PaymentMethod | null;
+          created_at: string;
+          sale_return_items: {
+            quantity: number;
+            unit_price: number | null;
+            products: { name: string } | null;
+          }[];
+        }[]
+      >();
+
+    if (error) {
+      // Sin la tabla (fix-11 sin correr) el detalle sigue funcionando.
+      console.error('[ventas] devoluciones:', error.message);
+      return [];
+    }
+
+    const rows = data ?? [];
+    const admins = await this.namesFrom('profiles', unique(rows.map((r) => r.user_id)));
+
+    return rows.map((r) => ({
+      id: r.id,
+      createdAt: r.created_at,
+      adminName: r.user_id ? admins.get(r.user_id) ?? null : null,
+      reason: r.reason,
+      itemsValue: r.items_value ?? 0,
+      refundAmount: r.refund_amount ?? 0,
+      refundMethod: r.refund_method,
+      items: (r.sale_return_items ?? []).map((it) => ({
+        productName: it.products?.name ?? 'Producto',
+        quantity: it.quantity,
+        unitPrice: it.unit_price ?? 0
+      }))
+    }));
+  }
+
+  /** Ids (de los dados) que tienen al menos una devolución. */
+  private async salesWithReturns(saleIds: string[]): Promise<Set<string>> {
+    if (saleIds.length === 0) {
+      return new Set();
+    }
+    const { data, error } = await this.db
+      .from('sale_returns')
+      .select('sale_id')
+      .in('sale_id', saleIds)
+      .returns<{ sale_id: string }[]>();
+
+    if (error) {
+      console.error('[ventas] devoluciones:', error.message);
+      return new Set();
+    }
+    return new Set((data ?? []).map((r) => r.sale_id));
   }
 
   /**
@@ -234,8 +350,7 @@ export class Sales {
       p_customer_id: input.customerId ? Number(input.customerId) : null,
       p_discount: Math.max(0, Math.round(Number(input.discount) || 0)),
       p_items: items,
-      p_method: input.payment.method,
-      p_amount: Math.round(Number(input.payment.amount))
+      p_payments: toPaymentsParam(input.payments)
     });
 
     if (error) {
@@ -360,26 +475,33 @@ export class Sales {
 
     const saleIds = unique(candidates.map((c) => c.sale_id));
 
-    // El primer pago (id más chico) de cada venta es el pago inicial, no un
-    // abono. Se busca en TODO el historial de esa venta, no solo en `range`.
+    // Los pagos iniciales de una venta (uno o varios métodos) se guardan en la
+    // misma transacción que `create_sale`, así que comparten el `created_at`
+    // más antiguo de esa venta. Cualquier pago posterior es un abono. Se busca
+    // en TODO el historial de esa venta, no solo en `range`.
     const { data: allPays, error: allErr } = await this.db
       .from('payments')
-      .select('id, sale_id')
+      .select('sale_id, created_at')
       .in('sale_id', saleIds)
-      .returns<{ id: number; sale_id: string }[]>();
+      .returns<{ sale_id: string; created_at: string }[]>();
     if (allErr) {
       throw allErr;
     }
 
-    const firstIdBySale = new Map<string, number>();
+    const firstAtBySale = new Map<string, number>();
     for (const p of allPays ?? []) {
-      const current = firstIdBySale.get(p.sale_id);
-      if (current === undefined || p.id < current) {
-        firstIdBySale.set(p.sale_id, p.id);
+      const at = Date.parse(p.created_at);
+      const current = firstAtBySale.get(p.sale_id);
+      if (current === undefined || at < current) {
+        firstAtBySale.set(p.sale_id, at);
       }
     }
 
-    const abonos = candidates.filter((c) => firstIdBySale.get(c.sale_id) !== c.id);
+    const abonos = candidates.filter(
+      (c) =>
+        (c.amount ?? 0) > 0 &&
+        Date.parse(c.created_at) > (firstAtBySale.get(c.sale_id) ?? Infinity)
+    );
     if (abonos.length === 0) {
       return [];
     }
@@ -434,6 +556,7 @@ export class Sales {
       .from('sales')
       .select('total')
       .gte('created_at', fromIso)
+      .neq('status', 'cancelled')
       .returns<{ total: number | null }[]>();
 
     if (error) {
@@ -637,6 +760,23 @@ export class Sales {
     }
     return result;
   }
+}
+
+/**
+ * Pagos para la RPC: montos enteros > 0 y un solo registro por método (si se
+ * repite un método, se suman). El servidor vuelve a validar todo.
+ */
+function toPaymentsParam(
+  payments: { method: PaymentMethod; amount: number }[]
+): { method: PaymentMethod; amount: number }[] {
+  const byMethod = new Map<PaymentMethod, number>();
+  for (const p of payments) {
+    const amount = Math.round(Number(p.amount));
+    if (amount > 0) {
+      byMethod.set(p.method, (byMethod.get(p.method) ?? 0) + amount);
+    }
+  }
+  return [...byMethod].map(([method, amount]) => ({ method, amount }));
 }
 
 function unique<T extends string | number>(values: (T | null)[]): T[] {

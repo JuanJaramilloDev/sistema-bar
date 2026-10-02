@@ -10,7 +10,7 @@ const PRODUCT_IMAGES_BUCKET = 'product-images';
  * y borra la anterior cuando se reemplaza o se quita.
  *
  * Requiere el bucket `product-images` (público, solo admin escribe) creado en
- * Supabase — ver `supabase/sql/product-images-storage.sql`.
+ * Supabase — ver `supabase/sql/setup-completo.sql` (sección 8).
  */
 @Injectable({ providedIn: 'root' })
 export class Storage {

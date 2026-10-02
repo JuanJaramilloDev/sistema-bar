@@ -17,6 +17,7 @@ const PATHS: Record<string, string[]> = {
     'M14 11v6'
   ],
   plus: ['M5 12h14', 'M12 5v14'],
+  x: ['M18 6 6 18', 'm6 6 12 12'],
   power: ['M12 2v10', 'M18.36 6.64a9 9 0 1 1-12.73 0'],
   sliders: [
     'M21 4h-7', 'M10 4H3', 'M21 12h-9', 'M8 12H3', 'M21 20h-5', 'M12 20H3',

@@ -368,10 +368,11 @@ button {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
-/* Historiales largos (ventas, abonos, movimientos de inventario): se ve
-   ~8 filas y el resto se ve con scroll vertical, para no estirar la página. */
+/* Listas largas (ventas, abonos, movimientos, categorías, productos,
+   clientes, empleados, inventario…): se ven ~9 filas y el resto queda con
+   scroll vertical dentro de la tabla, para que la página no se estire. */
 .table-wrap--scroll {
-  max-height: 400px;
+  max-height: 460px;
   overflow-y: auto;
 }
 /* Variantes más cortas para listas pequeñas (p. ej. Reportes): igual idea,
@@ -1022,4 +1023,20 @@ button {
     max-height: none !important;
     overflow: visible !important;
   }
+}
+
+/* Historial de devoluciones (detalle de la venta) */
+.returns {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 13px;
+}
+.returns__item {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  border-radius: var(--radius-sm);
 }

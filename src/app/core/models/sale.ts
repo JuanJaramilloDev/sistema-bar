@@ -111,7 +111,7 @@ export interface SaleItemInput {
   unit_price: number;
 }
 
-/** Pago al registrar la venta. Siempre obligatorio (ya no existe "fiado"). */
+/** Un pago al registrar/editar la venta (puede haber uno por método). */
 export interface SalePaymentInput {
   method: PaymentMethod;
   amount: number;
@@ -123,8 +123,11 @@ export interface CreateSaleInput {
   customerId: number | null;
   discount: number;
   items: SaleItemInput[];
-  /** El monto pagado ahora; puede ser parcial pero nunca 0. */
-  payment: SalePaymentInput;
+  /**
+   * Pagos de ahora: uno por método (1 a 3, sin repetir). La suma puede ser
+   * parcial pero nunca 0, y nunca mayor al total.
+   */
+  payments: SalePaymentInput[];
 }
 
 /**
@@ -139,7 +142,8 @@ export interface UpdateSaleInput {
   customerId: number | null;
   discount: number;
   items: SaleItemInput[];
-  payment: SalePaymentInput;
+  /** Reemplaza TODOS los pagos de la venta (uno por método). */
+  payments: SalePaymentInput[];
 }
 
 /** Lo que devuelve la RPC `create_sale`. */
@@ -170,6 +174,10 @@ export interface SaleListRow {
   paid: number;
   pending: number;
   status: PaymentStatus;
+  /** 'cancelled' = se devolvió TODO (ver devoluciones). */
+  dbStatus: SaleDbStatus;
+  /** true si la venta tiene al menos una devolución (total o parcial). */
+  hasReturns: boolean;
   customerId: number | null;
   createdAt: string;
   employeeName: string | null;
@@ -200,7 +208,46 @@ export interface SaleDetail {
   total: number;
   customerId: number | null;
   items: SaleItemRow[];
+  /** Incluye los reembolsos de devoluciones (monto negativo). */
   payments: SalePaymentRow[];
+  returns: SaleReturnRow[];
+}
+
+/* -------------------------------------------------------------------------
+   Devoluciones (solo admin). Tablas `sale_returns` / `sale_return_items`.
+   ------------------------------------------------------------------------- */
+
+/** Una devolución registrada sobre una venta (historial). */
+export interface SaleReturnRow {
+  id: number;
+  createdAt: string;
+  /** Admin que hizo la devolución (profiles.name). */
+  adminName: string | null;
+  reason: string;
+  /** Valor de los productos devueltos (precio de venta × cantidad). */
+  itemsValue: number;
+  /** Dinero devuelto al cliente (0 si solo se descontó de su saldo). */
+  refundAmount: number;
+  refundMethod: PaymentMethod | null;
+  items: { productName: string; quantity: number; unitPrice: number }[];
+}
+
+/** Lo que se envía a la RPC `return_sale`. */
+export interface ReturnSaleInput {
+  saleId: string;
+  items: { productId: number; quantity: number }[];
+  reason: string;
+  /** Método con el que se devuelve el dinero (solo se usa si hay reembolso). */
+  refundMethod: PaymentMethod;
+}
+
+/** Lo que devuelve la RPC `return_sale`. */
+export interface ReturnSaleResult {
+  itemsValue: number;
+  refund: number;
+  newTotal: number;
+  pending: number;
+  cancelled: boolean;
 }
 
 /** Filtro de rango de fechas del listado. */

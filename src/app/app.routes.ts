@@ -1,15 +1,20 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth-guard';
 import { roleGuard } from './core/guards/role-guard';
+import { guestGuard } from './core/guards/guest-guard';
 
 export const routes: Routes = [
   {
+    // La raíz muestra el login directamente (sin redirectTo) para que la barra
+    // de direcciones se quede en "/" y no aparezca "/login".
     path: '',
     pathMatch: 'full',
-    redirectTo: 'login'
+    canMatch: [guestGuard],
+    loadComponent: () => import('./pages/auth/login/login').then((m) => m.Login)
   },
   {
     path: 'login',
+    canMatch: [guestGuard],
     loadComponent: () => import('./pages/auth/login/login').then((m) => m.Login)
   },
   {
@@ -28,6 +33,6 @@ export const routes: Routes = [
   },
   {
     path: '**',
-    redirectTo: 'login'
+    redirectTo: ''
   }
 ];

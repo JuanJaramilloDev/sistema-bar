@@ -230,43 +230,7 @@
                     <div class="totals__row totals__row--big"><span>Total</span><span>{{ total() | currency }}</span></div>
                   </div>
 
-                  <div class="field">
-                    <label>¿Cómo se paga?</label>
-                    <div class="seg">
-                      <button type="button" class="seg__btn" [class.is-active]="payMode() === 'full'" (click)="setPayMode('full')">Pago completo</button>
-                      <button type="button" class="seg__btn" [class.is-active]="payMode() === 'custom'" (click)="setPayMode('custom')">Abono parcial</button>
-                    </div>
-                  </div>
-
-                  <div class="cobro__pay">
-                    <div class="field">
-                      <label for="s-method">Método</label>
-                      <select id="s-method" class="select" [value]="payMethod()" (change)="setMethod($any($event.target).value)">
-                        @for (m of methods; track m) {
-                          <option [value]="m">{{ methodLabel(m) }}</option>
-                        }
-                      </select>
-                    </div>
-                    @if (payMode() === 'custom') {
-                      <div class="field">
-                        <label for="s-amount">Monto pagado</label>
-                        <input
-                          id="s-amount"
-                          type="number"
-                          inputmode="numeric"
-                          min="0"
-                          step="500"
-                          class="input"
-                          [class.is-invalid]="paymentInvalid()"
-                          [value]="customAmount()"
-                          (input)="onCustomAmount($any($event.target).value)"
-                        />
-                        @if (paymentInvalid()) {
-                          <span class="field-error">El abono debe ser mayor a 0.</span>
-                        }
-                      </div>
-                    }
-                  </div>
+                  <ng-container *ngTemplateOutlet="payBlock; context: { $implicit: pay, id: 's', title: '¿Cómo se paga?' }" />
 
                   @if (customerRequired()) {
                     <div class="field">
@@ -291,9 +255,9 @@
                   }
 
                   <div class="totals totals--cobro">
-                    <div class="totals__row"><span>Pagado ahora</span><span>{{ paidAmount() | currency }}</span></div>
-                    <div class="totals__row" [class.totals__row--pending]="pending() > 0">
-                      <span>Pendiente</span><span>{{ pending() | currency }}</span>
+                    <div class="totals__row"><span>Pagado ahora</span><span>{{ pay.paid() | currency }}</span></div>
+                    <div class="totals__row" [class.totals__row--pending]="pay.pending() > 0">
+                      <span>Pendiente</span><span>{{ pay.pending() | currency }}</span>
                     </div>
                   </div>
 
@@ -403,7 +367,14 @@
                   <tbody>
                     @for (s of filteredSales(); track s.id) {
                       <tr [class.is-open]="expandedId() === s.id">
-                        <td class="col-tight">{{ s.invoiceNumber ? '#' + s.invoiceNumber : '—' }}</td>
+                        <td class="col-tight">
+                          {{ s.invoiceNumber ? '#' + s.invoiceNumber : '—' }}
+                          @if (s.dbStatus === 'cancelled') {
+                            <span class="badge badge--danger">Devuelta</span>
+                          } @else if (s.hasReturns) {
+                            <span class="badge badge--warn">Devolución</span>
+                          }
+                        </td>
                         <td class="col-tight">{{ s.createdAt | date:'dd/MM/yy HH:mm' }}</td>
                         <td>{{ s.customerName ?? '—' }}</td>
                         <td>{{ s.employeeName ?? '—' }}</td>
@@ -414,9 +385,14 @@
                         </td>
                         <td class="col-tight">
                           <div class="actions">
-                            @if (isAdmin()) {
-                              <button type="button" class="icon-btn" title="Editar venta" (click)="openEdit(s)">
-                                <app-icon name="edit" />
+                            @if (isAdmin() && s.dbStatus !== 'cancelled') {
+                              @if (!s.hasReturns) {
+                                <button type="button" class="icon-btn" title="Editar venta" (click)="openEdit(s)">
+                                  <app-icon name="edit" />
+                                </button>
+                              }
+                              <button type="button" class="icon-btn" title="Devolución" (click)="openReturn(s)">
+                                <app-icon name="undo" />
                               </button>
                             }
                             <button
@@ -472,16 +448,46 @@
                                       <span class="badge badge--danger">Sin pago registrado</span>
                                     } @else {
                                       @for (p of d.payments; track $index) {
-                                        <span class="badge badge--neutral">{{ methodLabel(p.method) }} · {{ p.amount | currency }}</span>
+                                        @if (p.amount < 0) {
+                                          <span class="badge badge--danger">Reembolso {{ methodLabel(p.method) }} · −{{ -p.amount | currency }}</span>
+                                        } @else {
+                                          <span class="badge badge--neutral">{{ methodLabel(p.method) }} · {{ p.amount | currency }}</span>
+                                        }
                                       }
                                     }
                                   </div>
                                   <div class="detail__row">
                                     <span>Estado</span>
-                                    <span class="badge" [class]="statusClass(s.status)">{{ statusLabel(s.status) }}</span>
+                                    @if (s.dbStatus === 'cancelled') {
+                                      <span class="badge badge--danger">Devuelta</span>
+                                    } @else {
+                                      <span class="badge" [class]="statusClass(s.status)">{{ statusLabel(s.status) }}</span>
+                                    }
                                   </div>
                                 </div>
                               </div>
+                              @if (d.returns.length > 0) {
+                                <div class="returns">
+                                  @for (r of d.returns; track r.id) {
+                                    <div class="returns__item">
+                                      <div>
+                                        <span class="badge badge--danger">Devolución</span>
+                                        {{ r.createdAt | date:'dd/MM/yy HH:mm' }} · hecha por <strong>{{ r.adminName ?? 'Administrador' }}</strong>
+                                      </div>
+                                      <div class="hint">Motivo: {{ r.reason }}</div>
+                                      <div>
+                                        @for (it of r.items; track $index) {
+                                          {{ it.quantity }} × {{ it.productName }}@if (!$last) {, }
+                                        }
+                                        · {{ r.itemsValue | currency }}
+                                        @if (r.refundAmount > 0) {
+                                          · reembolso {{ r.refundAmount | currency }} ({{ methodLabel(r.refundMethod) }})
+                                        }
+                                      </div>
+                                    </div>
+                                  }
+                                </div>
+                              }
                             }
                           </td>
                         </tr>
@@ -594,43 +600,7 @@
           <div class="totals__row totals__row--big"><span>Total</span><span>{{ editTotal() | currency }}</span></div>
         </div>
 
-        <div class="field">
-          <label>Pago</label>
-          <div class="seg">
-            <button type="button" class="seg__btn" [class.is-active]="editPayMode() === 'full'" (click)="editSetPayMode('full')">Pago completo</button>
-            <button type="button" class="seg__btn" [class.is-active]="editPayMode() === 'custom'" (click)="editSetPayMode('custom')">Abono parcial</button>
-          </div>
-        </div>
-
-        <div class="cobro__pay">
-          <div class="field">
-            <label for="e-method">Método</label>
-            <select id="e-method" class="select" [value]="editPayMethod()" (change)="editSetMethod($any($event.target).value)">
-              @for (m of methods; track m) {
-                <option [value]="m">{{ methodLabel(m) }}</option>
-              }
-            </select>
-          </div>
-          @if (editPayMode() === 'custom') {
-            <div class="field">
-              <label for="e-amount">Monto pagado</label>
-              <input
-                id="e-amount"
-                type="number"
-                inputmode="numeric"
-                min="0"
-                step="500"
-                class="input"
-                [class.is-invalid]="editPaymentInvalid()"
-                [value]="editAmount()"
-                (input)="editOnAmount($any($event.target).value)"
-              />
-              @if (editPaymentInvalid()) {
-                <span class="field-error">El abono debe ser mayor a 0.</span>
-              }
-            </div>
-          }
-        </div>
+        <ng-container *ngTemplateOutlet="payBlock; context: { $implicit: editPay, id: 'e', title: 'Pago' }" />
 
         <div class="field">
           <label for="e-customer">
@@ -653,7 +623,7 @@
         </div>
 
         <div class="totals totals--cobro">
-          <div class="totals__row"><span>Pagado</span><span>{{ editPaid() | currency }}</span></div>
+          <div class="totals__row"><span>Pagado</span><span>{{ editPay.paid() | currency }}</span></div>
           <div class="totals__row" [class.totals__row--pending]="editPending() > 0">
             <span>Pendiente</span><span>{{ editPending() | currency }}</span>
           </div>
@@ -674,3 +644,180 @@
     </div>
   }
 </app-modal>
+
+<app-modal
+  [open]="returnSale() !== null"
+  [locked]="returnSaving()"
+  [title]="'Devolución' + (returnSale()?.invoiceNumber ? ' venta #' + returnSale()!.invoiceNumber : '')"
+  (closed)="closeReturn()"
+>
+  @if (returnSale()) {
+    <div class="form">
+      @if (!returnDetail()) {
+        @if (!returnError()) {
+          <app-loading message="Cargando venta…" />
+        }
+      } @else {
+        <p class="hint">
+          Elige qué productos y cuántos devuelve el cliente. Vuelven al inventario
+          y la venta queda marcada como devolución en el historial.
+          <button type="button" class="link-btn" (click)="returnAll()">Devolver todo</button>
+        </p>
+
+        <div class="cart">
+          @for (it of returnDetail()!.items; track it.productId) {
+            <div class="cart-line">
+              <div class="cart-line__info">
+                <span class="cart-line__name">{{ it.productName }}</span>
+                <span class="cart-line__unit">{{ it.unitPrice | currency }} c/u · vendidos {{ it.quantity }}</span>
+              </div>
+              <div class="qty">
+                <button type="button" class="qty__btn" (click)="returnStep(it.productId, -1)">−</button>
+                <input
+                  class="qty__input"
+                  type="number"
+                  inputmode="numeric"
+                  min="0"
+                  [max]="it.quantity"
+                  [value]="returnQty()[it.productId] ?? 0"
+                  (change)="returnSetQty(it.productId, $any($event.target).value)"
+                />
+                <button
+                  type="button"
+                  class="qty__btn"
+                  [disabled]="(returnQty()[it.productId] ?? 0) >= it.quantity"
+                  (click)="returnStep(it.productId, 1)"
+                >+</button>
+              </div>
+              <span class="cart-line__total">{{ it.unitPrice * (returnQty()[it.productId] ?? 0) | currency }}</span>
+            </div>
+          }
+        </div>
+
+        <div class="field">
+          <label for="r-reason">Motivo <span class="hint">(obligatorio)</span></label>
+          <textarea
+            id="r-reason"
+            class="input textarea"
+            maxlength="300"
+            placeholder="Ej: el cliente ya no lo quiso"
+            [value]="returnReason()"
+            (input)="returnReason.set($any($event.target).value)"
+          ></textarea>
+        </div>
+
+        @if (returnPreview(); as pv) {
+          @if (pv.refund > 0) {
+            <div class="field">
+              <label for="r-method">Devolver el dinero en</label>
+              <select id="r-method" class="select pay__method" [value]="returnMethod()" (change)="returnMethod.set($any($event.target).value)">
+                @for (m of methods; track m) {
+                  <option [value]="m">{{ methodLabel(m) }}</option>
+                }
+              </select>
+            </div>
+          }
+
+          <div class="totals totals--cobro">
+            <div class="totals__row"><span>Productos devueltos</span><span>{{ pv.value | currency }}</span></div>
+            <div class="totals__row"><span>Nuevo total de la venta</span><span>{{ pv.newTotal | currency }}</span></div>
+            @if (pv.pendingCut > 0) {
+              <div class="totals__row"><span>Se descuenta del saldo pendiente</span><span>{{ pv.pendingCut | currency }}</span></div>
+            }
+            <div class="totals__row" [class.totals__row--pending]="pv.refund > 0">
+              <span>Devolver al cliente</span><span>{{ pv.refund | currency }}</span>
+            </div>
+            @if (pv.all) {
+              <div class="totals__row totals__row--muted"><span>Se devuelve todo: la venta queda como «Devuelta».</span><span></span></div>
+            }
+          </div>
+        }
+      }
+
+      @if (returnError()) {
+        <div class="alert alert-danger">{{ returnError() }}</div>
+      }
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" (click)="closeReturn()" [disabled]="returnSaving()">Cancelar</button>
+        <button type="button" class="btn btn-primary" [disabled]="!returnCanSave()" (click)="submitReturn()">
+          @if (returnSaving()) { <span class="spinner"></span> Guardando… }
+          @else { Registrar devolución }
+        </button>
+      </div>
+    </div>
+  }
+</app-modal>
+
+<!--
+  Cobro (registrar y editar): pago completo / abono parcial, método principal
+  y, opcional, otros métodos para dividir el pago. El cuadro de monto solo
+  aparece en abono parcial o cuando se agregó otro método.
+-->
+<ng-template #payBlock let-pay let-id="id" let-title="title">
+  <div class="field">
+    <label>{{ title }}</label>
+    <div class="seg">
+      <button type="button" class="seg__btn" [class.is-active]="pay.mode() === 'full'" (click)="pay.setMode('full')">Pago completo</button>
+      <button type="button" class="seg__btn" [class.is-active]="pay.mode() === 'custom'" (click)="pay.setMode('custom')">Abono parcial</button>
+    </div>
+  </div>
+
+  <div class="field">
+    <label [for]="id + '-method'">Método</label>
+    <div class="pay__row">
+      <select [id]="id + '-method'" class="select pay__method" [value]="pay.method()" (change)="pay.setMethod($any($event.target).value)">
+        @for (m of methods; track m) {
+          <option [value]="m" [disabled]="pay.taken(m, -1)">{{ methodLabel(m) }}</option>
+        }
+      </select>
+      @if (pay.splitting() || pay.mode() === 'custom') {
+        <input
+          type="number"
+          inputmode="numeric"
+          min="0"
+          step="500"
+          class="input pay__amount"
+          aria-label="Monto del método principal"
+          [class.is-invalid]="pay.invalid() && !pay.primaryAuto()"
+          [readOnly]="pay.primaryAuto()"
+          [title]="pay.primaryAuto() ? 'Se calcula solo: lo que falta para el total' : ''"
+          [value]="pay.primaryAmount()"
+          (input)="pay.setAmount($any($event.target).value)"
+        />
+      }
+    </div>
+
+    @for (x of pay.extras(); track $index; let i = $index) {
+      <div class="pay__row">
+        <select class="select pay__method" aria-label="Otro método" [value]="x.method" (change)="pay.setExtraMethod(i, $any($event.target).value)">
+          @for (m of methods; track m) {
+            <option [value]="m" [disabled]="pay.taken(m, i)">{{ methodLabel(m) }}</option>
+          }
+        </select>
+        <input
+          type="number"
+          inputmode="numeric"
+          min="0"
+          step="500"
+          class="input pay__amount"
+          placeholder="Monto"
+          aria-label="Monto de este método"
+          [class.is-invalid]="x.amount <= 0"
+          [value]="x.amount || ''"
+          (input)="pay.setExtraAmount(i, $any($event.target).value)"
+        />
+        <button type="button" class="pay__remove" aria-label="Quitar este método" title="Quitar" (click)="pay.remove(i)">
+          <app-icon name="x" />
+        </button>
+      </div>
+    }
+
+    @if (pay.canAdd()) {
+      <button type="button" class="pay__add" (click)="pay.add()">+ otro método</button>
+    }
+    @if (pay.error()) {
+      <span class="field-error">{{ pay.error() }}</span>
+    }
+  </div>
+</ng-template>

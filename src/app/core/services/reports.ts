@@ -94,6 +94,7 @@ export class Reports {
       .select('id, invoice_number, subtotal, discount, total, user_id, customer_id, created_at')
       .gte('created_at', fromIso)
       .lt('created_at', toIso)
+      .neq('status', 'cancelled')
       .returns<
         {
           id: string;
@@ -120,9 +121,9 @@ export class Reports {
     const [paymentsRes, itemsRes] = await Promise.all([
       this.db
         .from('payments')
-        .select('id, sale_id, payment_method, amount')
+        .select('id, sale_id, payment_method, amount, created_at')
         .in('sale_id', saleIds)
-        .returns<{ id: number; sale_id: string; payment_method: PaymentMethod; amount: number | null }[]>(),
+        .returns<{ id: number; sale_id: string; payment_method: PaymentMethod; amount: number | null; created_at: string }[]>(),
       this.db
         .from('sale_items')
         .select('sale_id, product_id, quantity, subtotal')
@@ -135,14 +136,17 @@ export class Reports {
     const payments = paymentsRes.data ?? [];
     const items = itemsRes.data ?? [];
 
-    // --- pagado por venta + desglose por método + abonos (pagos que no son
-    //     el primero de su venta) ---
+    // --- pagado por venta + desglose por método (neto: los reembolsos de
+    //     devoluciones son pagos negativos) + abonos. Los pagos iniciales (uno
+    //     o varios métodos) comparten el `created_at` más antiguo de su venta;
+    //     un abono es un pago positivo posterior. ---
     const paidBySale = new Map<string, number>();
-    const firstPayIdBySale = new Map<string, number>();
+    const firstAtBySale = new Map<string, number>();
     for (const p of payments) {
-      const current = firstPayIdBySale.get(p.sale_id);
-      if (current === undefined || p.id < current) {
-        firstPayIdBySale.set(p.sale_id, p.id);
+      const at = Date.parse(p.created_at);
+      const current = firstAtBySale.get(p.sale_id);
+      if (current === undefined || at < current) {
+        firstAtBySale.set(p.sale_id, at);
       }
     }
     const byMethod: ReportMethodTotals = { cash: 0, transfer: 0, card: 0 };
@@ -154,7 +158,7 @@ export class Reports {
       if (p.payment_method === 'cash') byMethod.cash += amount;
       else if (p.payment_method === 'card') byMethod.card += amount;
       else byMethod.transfer += amount;
-      if (firstPayIdBySale.get(p.sale_id) !== p.id) {
+      if (amount > 0 && Date.parse(p.created_at) > (firstAtBySale.get(p.sale_id) ?? Infinity)) {
         abonos += amount;
         abonosCount += 1;
       }
