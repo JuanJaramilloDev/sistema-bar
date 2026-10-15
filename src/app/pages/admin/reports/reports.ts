@@ -12,10 +12,14 @@ import {
 } from '../../../core/services/reports';
 import { Sales as SalesApi } from '../../../core/services/sales';
 import { humanizeDbError, type DbError } from '../../../core/services/supabase';
+import { Closings } from '../closings/closings';
+import { jornadaStartOf } from '../../../core/utils/jornada';
 
 type ViewState = 'loading' | 'ready' | 'error';
 type RangePreset = 'week' | 'month' | 'quarter' | 'year' | 'custom';
 type Notice = { text: string; kind: 'ok' | 'err' };
+/** Vista de la página: el reporte normal o los cierres semanales/mensuales. */
+type View = 'report' | 'closings';
 
 /** Palabra exacta que hay que escribir para habilitar el borrado total. */
 const WIPE_CONFIRM_WORD = 'BORRAR';
@@ -32,13 +36,16 @@ const WIPE_CONFIRM_WORD = 'BORRAR';
  *    con una hoja de estilos de impresión que oculta el menú y dejan solo
  *    el reporte. Tampoco necesita librerías nuevas.
  *
+ * Cierres: el botón "Cierres" cambia la vista al componente `app-closings`
+ * (cierre semanal / mensual + historial de cierres guardados).
+ *
  * Zona de peligro: borra todo el historial de ventas/abonos (RPC
  * `wipe_sales_data`, ver `core/services/sales.ts`). Doble verificación en el
  * modal (casilla + escribir "BORRAR") para que no se dispare por accidente.
  */
 @Component({
   selector: 'app-reports',
-  imports: [CurrencyPipe, DatePipe, Loading, Empty, Icon, Modal],
+  imports: [CurrencyPipe, DatePipe, Loading, Empty, Icon, Modal, Closings],
   templateUrl: './reports.html',
   styleUrl: './reports.css',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -49,6 +56,7 @@ export class Reports {
   private readonly salesApi = inject(SalesApi);
   private noticeTimer: ReturnType<typeof setTimeout> | null = null;
 
+  readonly view = signal<View>('report');
   readonly state = signal<ViewState>('loading');
   readonly summary = signal<ReportSummary | null>(null);
 
@@ -286,8 +294,9 @@ function rangeFromPreset(preset: RangePreset, customFrom: string, customTo: stri
     case 'year':
       return { fromIso: new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000).toISOString(), toIso };
     case 'custom': {
-      const from = customFrom ? new Date(customFrom + 'T00:00:00') : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      const to = customTo ? new Date(customTo + 'T00:00:00') : now;
+      // Las fechas elegidas son jornadas: van de mediodía a mediodía.
+      const from = customFrom ? jornadaStartOf(new Date(customFrom + 'T00:00:00')) : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const to = customTo ? jornadaStartOf(new Date(customTo + 'T00:00:00')) : now;
       to.setDate(to.getDate() + 1);
       return { fromIso: from.toISOString(), toIso: to.toISOString() };
     }

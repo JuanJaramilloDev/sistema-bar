@@ -1,0 +1,131 @@
+<section class="card panel">
+  <div class="panel__head">
+    <span class="panel__title">Gastos fijos</span>
+    <button type="button" class="btn btn-primary btn-sm no-print" (click)="openCreate()">
+      <app-icon name="plus" /> Nuevo gasto
+    </button>
+  </div>
+  <div class="panel__body">
+    @switch (state()) {
+      @case ('loading') {
+        <app-loading message="Cargando gastos fijos…" />
+      }
+      @case ('error') {
+        <div class="panel__body--pad">
+          <div class="alert alert-danger">
+            No fue posible cargar los gastos fijos.
+            <button type="button" class="link-btn" (click)="load()">Reintentar</button>
+          </div>
+        </div>
+      }
+      @default {
+        <div class="panel__body--pad totals-line">
+          <span>Al mes: <strong>{{ monthlyTotal() | currency }}</strong></span>
+          <span>Por semana: <strong>{{ weeklyTotal() | currency }}</strong></span>
+        </div>
+        @if (error()) {
+          <div class="panel__body--pad"><div class="alert alert-danger">{{ error() }}</div></div>
+        }
+        @if (all().length === 0) {
+          <app-empty title="Aún no hay gastos fijos" hint="Agrega arriendo, servicios, nómina… con su valor mensual." />
+        } @else {
+          <div class="table-wrap table-wrap--scroll-2">
+            <table class="table table--narrow">
+              <thead>
+                <tr>
+                  <th>Gasto</th>
+                  <th class="num">Mensual</th>
+                  <th class="num">Semanal</th>
+                  <th class="col-tight no-print">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (e of all(); track e.id) {
+                  <tr [class.is-inactive]="!e.active">
+                    <td>
+                      {{ e.name }}
+                      @if (!e.active) { <span class="badge badge--neutral">Inactivo</span> }
+                    </td>
+                    <td class="num">{{ e.monthly_amount | currency }}</td>
+                    <td class="num">{{ weekly(e.monthly_amount) | currency }}</td>
+                    <td class="col-tight no-print">
+                      <div class="actions">
+                        <button type="button" class="icon-btn" title="Editar" (click)="openEdit(e)">
+                          <app-icon name="edit" />
+                        </button>
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          [title]="e.active ? 'Desactivar' : 'Activar'"
+                          [disabled]="busyId() === e.id"
+                          (click)="toggleActive(e)"
+                        >
+                          <app-icon name="power" />
+                        </button>
+                        @if (confirmDeleteId() === e.id) {
+                          <button type="button" class="btn btn-danger btn-sm" [disabled]="busyId() === e.id" (click)="remove(e)">
+                            ¿Eliminar?
+                          </button>
+                        } @else {
+                          <button type="button" class="icon-btn icon-btn--danger" title="Eliminar" (click)="remove(e)">
+                            <app-icon name="trash" />
+                          </button>
+                        }
+                      </div>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      }
+    }
+  </div>
+</section>
+
+<app-modal
+  [open]="formOpen()"
+  [locked]="saving()"
+  [title]="editing() ? 'Editar gasto fijo' : 'Nuevo gasto fijo'"
+  (closed)="closeForm()"
+>
+  <form class="form" (submit)="submit($event)">
+    <div class="field">
+      <label for="fx-name">Nombre</label>
+      <input
+        id="fx-name"
+        type="text"
+        class="input"
+        placeholder="Ej. Arriendo"
+        [value]="name()"
+        (input)="name.set($any($event.target).value)"
+      />
+    </div>
+    <div class="field">
+      <label for="fx-amount">Valor mensual</label>
+      <input
+        id="fx-amount"
+        type="number"
+        inputmode="numeric"
+        min="0"
+        step="1000"
+        class="input"
+        [value]="amount()"
+        (input)="amount.set(+$any($event.target).value)"
+      />
+    </div>
+
+    @if (formError()) {
+      <div class="alert alert-danger">{{ formError() }}</div>
+    }
+
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" (click)="closeForm()" [disabled]="saving()">Cancelar</button>
+      <button type="submit" class="btn btn-primary" [disabled]="saving()">
+        @if (saving()) { <span class="spinner"></span> Guardando… }
+        @else { {{ editing() ? 'Guardar cambios' : 'Agregar gasto' }} }
+      </button>
+    </div>
+  </form>
+</app-modal>

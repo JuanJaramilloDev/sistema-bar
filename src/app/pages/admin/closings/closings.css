@@ -1,0 +1,139 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.notice-alert {
+  cursor: pointer;
+}
+
+.period {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.period__label {
+  font-weight: 700;
+  min-width: 190px;
+  text-align: center;
+}
+
+.close-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 18px;
+  align-items: start;
+}
+@media (max-width: 760px) {
+  .close-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.stats--stack {
+  grid-template-columns: 1fr;
+}
+
+/* Estado de resultados: renglones con signo, como un recibo */
+.ledger {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.ledger__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  font-variant-numeric: tabular-nums;
+  border-bottom: 1px solid var(--border);
+}
+.ledger__row:last-child {
+  border-bottom: none;
+}
+.ledger__row--minus {
+  color: var(--text-muted);
+}
+.ledger__row--sum {
+  font-weight: 700;
+  background: var(--surface-2);
+}
+.ledger__row--total {
+  font-weight: 800;
+  font-size: 17px;
+  color: var(--accent);
+  background: var(--surface-2);
+}
+.ledger__row--neg,
+.neg {
+  color: var(--danger, #e05555);
+}
+
+.sub-title {
+  margin: 20px 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.save {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+.save__notes {
+  flex: 1;
+  min-width: 220px;
+}
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.strong {
+  font-weight: 700;
+}
+
+/* Segmentos semanal / mensual (mismo estilo que Reportes) */
+.seg {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  flex-wrap: wrap;
+}
+.seg__btn {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.seg__btn.is-active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-1);
+}
+
+/* Alturas a la medida de estas filas (~45px + encabezado): 2 y 3 filas visibles */
+.table-wrap--scroll-2 {
+  max-height: 136px;
+}
+.table-wrap--scroll-3 {
+  max-height: 182px;
+}
+
+.code-inline {
+  color: var(--accent);
+  letter-spacing: 0.04em;
+}

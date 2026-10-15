@@ -1,0 +1,289 @@
+@if (notice(); as n) {
+  <div
+    class="alert notice-alert"
+    [class.alert-success]="n.kind === 'ok'"
+    [class.alert-danger]="n.kind === 'err'"
+    (click)="dismissNotice()"
+  >{{ n.text }}</div>
+}
+
+<div class="toolbar no-print">
+  <div class="seg">
+    <button type="button" class="seg__btn" [class.is-active]="kind() === 'week'" (click)="setKind('week')">Cierre semanal</button>
+    <button type="button" class="seg__btn" [class.is-active]="kind() === 'month'" (click)="setKind('month')">Cierre mensual</button>
+  </div>
+  <div class="period">
+    <button type="button" class="btn btn-ghost btn-sm" (click)="move(-1)" aria-label="Periodo anterior">‹</button>
+    <span class="period__label">{{ label() }}</span>
+    <button type="button" class="btn btn-ghost btn-sm" (click)="move(1)" aria-label="Periodo siguiente">›</button>
+    <button type="button" class="link-btn" (click)="goToday()">Hoy</button>
+  </div>
+</div>
+
+<!-- Cierre del periodo elegido (en vivo) -->
+<section class="card panel">
+  <div class="panel__head">
+    <span class="panel__title">{{ kind() === 'week' ? 'Cierre semanal' : 'Cierre mensual' }} · {{ label() }}</span>
+    @if (saved(); as sv) {
+      <span class="badge badge--success">Cerrado el {{ sv.closed_at | date:'dd/MM/yy HH:mm' }}</span>
+    } @else if (!periodOver()) {
+      <span class="badge badge--warn">Periodo en curso</span>
+    }
+  </div>
+  <div class="panel__body panel__body--pad">
+    @switch (state()) {
+      @case ('loading') {
+        <app-loading message="Calculando cierre…" />
+      }
+      @case ('error') {
+        <div class="alert alert-danger">
+          No fue posible calcular el cierre.
+          <button type="button" class="link-btn" (click)="load()">Reintentar</button>
+        </div>
+      }
+      @default {
+        @if (statement(); as st) {
+          <div class="close-grid">
+            <div class="ledger">
+              <div class="ledger__row ledger__row--sum"><span>Total ({{ st.count }} ventas)</span><span>{{ st.total | currency }}</span></div>
+              <div class="ledger__row ledger__row--minus"><span>− Descuentos</span><span>{{ st.discounts | currency }}</span></div>
+              <div class="ledger__row ledger__row--minus"><span>− Para reponer (costo de lo vendido)</span><span>{{ st.cost | currency }}</span></div>
+              <div class="ledger__row ledger__row--minus"><span>− Comisiones promotoras {{ kind() === 'week' ? '(parte de la semana)' : '(' + st.commissionPct + '%)' }}</span><span>{{ st.commissions | currency }}</span></div>
+              <div class="ledger__row ledger__row--minus">
+                <span>− Gastos fijos {{ kind() === 'week' ? '(parte de la semana)' : '(del mes)' }}</span><span>{{ st.fixedExpenses | currency }}</span>
+              </div>
+              <div class="ledger__row ledger__row--total" [class.ledger__row--neg]="st.profit < 0">
+                <span>= Ganancia</span><span>{{ st.profit | currency }}</span>
+              </div>
+            </div>
+
+            <div class="stats stats--stack">
+              <div class="card stat stat--accent">
+                <span class="stat__label">Debe quedar</span>
+                <span class="stat__value">{{ st.shouldRemain | currency }}</span>
+                <span class="stat__hint">Reponer {{ st.cost | currency }} + gastos fijos {{ st.fixedExpenses | currency }} + ganancia {{ st.profit | currency }}</span>
+              </div>
+              <div class="card stat">
+                <span class="stat__label">Apartar para gastos fijos</span>
+                <span class="stat__value">{{ st.fixedExpenses | currency }}</span>
+              </div>
+              <div class="card stat">
+                <span class="stat__label">Ya cobrado</span>
+                <span class="stat__value">{{ st.collected | currency }}</span>
+              </div>
+              <div class="card stat" [class.stat--warn]="st.pending > 0">
+                <span class="stat__label">Aún deben clientes</span>
+                <span class="stat__value">{{ st.pending | currency }}</span>
+              </div>
+            </div>
+          </div>
+
+          <h3 class="sub-title">Comisiones por promotora</h3>
+          @if (st.promoters.length === 0) {
+            <p class="hint">Ninguna promotora tiene ventas pagadas en {{ kind() === 'week' ? 'el mes de esta semana' : 'este periodo' }}.</p>
+          } @else {
+            <div class="table-wrap table-wrap--scroll-2">
+              <table class="table table--narrow">
+                <thead>
+                  <tr>
+                    <th>Código</th>
+                    <th class="num">{{ kind() === 'week' ? 'Pagado en el mes' : 'Vendido y pagado' }}</th>
+                    @if (kind() === 'week') { <th class="num">Comisión del mes</th> }
+                    <th class="num">{{ kind() === 'week' ? 'Esta semana' : 'Comisión' }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (p of st.promoters; track p.code) {
+                    <tr>
+                      <td><strong class="code-inline">{{ p.code }}</strong></td>
+                      <td class="num">{{ p.paid_total | currency }}</td>
+                      @if (kind() === 'week') { <td class="num">{{ p.monthly_commission ?? 0 | currency }}</td> }
+                      <td class="num">{{ p.commission | currency }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+
+          <div class="save no-print">
+            <div class="field save__notes">
+              <label for="close-notes">Nota del cierre <span class="hint">(opcional)</span></label>
+              <input
+                id="close-notes"
+                type="text"
+                class="input"
+                placeholder="Ej. se repuso el lunes, faltó $10.000 en caja…"
+                [value]="notes()"
+                (input)="notes.set($any($event.target).value)"
+              />
+            </div>
+            <button type="button" class="btn btn-primary" (click)="save()" [disabled]="saving()">
+              @if (saving()) { <span class="spinner"></span> Guardando… }
+              @else { {{ saved() ? 'Actualizar cierre' : 'Guardar cierre' }} }
+            </button>
+          </div>
+          @if (!periodOver()) {
+            <p class="hint">El periodo aún no termina: si lo guardas ahora, actualízalo al final.</p>
+          }
+        }
+      }
+    }
+  </div>
+</section>
+
+<!-- Gastos fijos (se restan del cierre) -->
+<app-fixed-expenses (changed)="expenseList.set($event)" />
+
+<!-- Historial de cierres guardados -->
+<section class="card panel">
+  <div class="panel__head">
+    <span class="panel__title">Historial de cierres</span>
+    <span class="badge badge--neutral">{{ history().length }}</span>
+  </div>
+  <div class="panel__body">
+    @switch (historyState()) {
+      @case ('loading') {
+        <app-loading message="Cargando cierres…" />
+      }
+      @case ('error') {
+        <div class="panel__body--pad">
+          <div class="alert alert-danger">
+            No fue posible cargar los cierres.
+            <button type="button" class="link-btn" (click)="loadHistory()">Reintentar</button>
+          </div>
+        </div>
+      }
+      @default {
+        @if (history().length === 0) {
+          <app-empty title="Aún no hay cierres guardados" hint="Calcula un periodo y pulsa «Guardar cierre»." />
+        } @else {
+          <div class="table-wrap table-wrap--scroll-3">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th class="col-tight">Tipo</th>
+                  <th>Periodo</th>
+                  <th class="num">Total vendido</th>
+                  <th class="num">Debe quedar</th>
+                  <th class="col-tight">Cerrado</th>
+                  <th class="col-tight"></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (c of history(); track c.id) {
+                  <tr>
+                    <td class="col-tight">
+                      <span class="badge" [class.badge--neutral]="c.kind === 'week'" [class.badge--success]="c.kind === 'month'">
+                        {{ c.kind === 'week' ? 'Semanal' : 'Mensual' }}
+                      </span>
+                    </td>
+                    <td>{{ closingLabel(c) }}</td>
+                    <td class="num">{{ c.total | currency }}</td>
+                    <td class="num strong">{{ c.should_remain | currency }}</td>
+                    <td class="col-tight">{{ c.closed_at | date:'dd/MM/yy' }}</td>
+                    <td class="col-tight">
+                      <button type="button" class="link-btn" (click)="openDetail(c)">Ver</button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      }
+    }
+  </div>
+</section>
+
+<!-- Modal: detalle de un cierre guardado -->
+<app-modal
+  [open]="detail() !== null"
+  [locked]="deleting()"
+  [title]="detail() ? (detail()!.kind === 'week' ? 'Cierre semanal' : 'Cierre mensual') : 'Cierre'"
+  (closed)="closeDetail()"
+>
+  @if (detail(); as c) {
+    <div class="form">
+      <p>
+        <strong>{{ closingLabel(c) }}</strong> · guardado el {{ c.closed_at | date:'dd/MM/yy HH:mm' }}
+      </p>
+
+      <div class="ledger">
+        <div class="ledger__row ledger__row--sum"><span>Total ({{ c.sales_count }} ventas)</span><span>{{ c.total | currency }}</span></div>
+        <div class="ledger__row ledger__row--minus"><span>− Descuentos</span><span>{{ c.discounts | currency }}</span></div>
+        <div class="ledger__row ledger__row--minus"><span>− Para reponer</span><span>{{ c.cost | currency }}</span></div>
+        <div class="ledger__row ledger__row--minus"><span>− Comisiones {{ c.kind === 'week' ? '(parte de la semana)' : '(' + c.commission_pct + '%)' }}</span><span>{{ c.commissions | currency }}</span></div>
+        <div class="ledger__row ledger__row--minus"><span>− Gastos fijos</span><span>{{ c.fixed_expenses | currency }}</span></div>
+        <div class="ledger__row ledger__row--total" [class.ledger__row--neg]="c.profit < 0">
+          <span>= Ganancia</span><span>{{ c.profit | currency }}</span>
+        </div>
+        <div class="ledger__row ledger__row--sum"><span>Debe quedar</span><span>{{ c.should_remain | currency }}</span></div>
+        <div class="ledger__row"><span>Ya cobrado</span><span>{{ c.collected | currency }}</span></div>
+        <div class="ledger__row"><span>Aún debían clientes</span><span>{{ c.pending | currency }}</span></div>
+      </div>
+
+      @if (c.promoters.length > 0) {
+        <div class="table-wrap table-wrap--scroll-2">
+          <table class="table table--narrow">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th class="num">{{ c.kind === 'week' ? 'Pagado en el mes' : 'Pagado' }}</th>
+                @if (c.kind === 'week') { <th class="num">Comisión del mes</th> }
+                <th class="num">{{ c.kind === 'week' ? 'Esta semana' : 'Comisión' }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (p of c.promoters; track p.code) {
+                <tr>
+                  <td><strong class="code-inline">{{ p.code }}</strong></td>
+                  <td class="num">{{ p.paid_total | currency }}</td>
+                  @if (c.kind === 'week') { <td class="num">{{ p.monthly_commission ?? 0 | currency }}</td> }
+                  <td class="num">{{ p.commission | currency }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+
+      @if (c.expenses.length > 0) {
+        <div class="table-wrap table-wrap--scroll-2">
+          <table class="table table--narrow">
+            <thead>
+              <tr>
+                <th>Gasto fijo</th>
+                <th class="num">Mensual</th>
+                <th class="num">Apartado</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (e of c.expenses; track e.name) {
+                <tr>
+                  <td>{{ e.name }}</td>
+                  <td class="num">{{ e.monthly_amount | currency }}</td>
+                  <td class="num">{{ e.amount | currency }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+
+      @if (c.notes) {
+        <p class="hint">Nota: {{ c.notes }}</p>
+      }
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-danger" (click)="removeDetail()" [disabled]="deleting()">
+          @if (deleting()) { <span class="spinner"></span> Eliminando… }
+          @else { {{ confirmDelete() ? '¿Seguro? Sí, eliminar' : 'Eliminar cierre' }} }
+        </button>
+        <button type="button" class="btn btn-ghost" (click)="closeDetail()" [disabled]="deleting()">
+          Cerrar
+        </button>
+      </div>
+    </div>
+  }
+</app-modal>

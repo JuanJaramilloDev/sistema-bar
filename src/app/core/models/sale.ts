@@ -128,6 +128,8 @@ export interface CreateSaleInput {
    * parcial pero nunca 0, y nunca mayor al total.
    */
   payments: SalePaymentInput[];
+  /** Código de promotora (opcional): la venta cuenta para su porcentaje. */
+  promoterId: number | null;
 }
 
 /**
@@ -144,6 +146,8 @@ export interface UpdateSaleInput {
   items: SaleItemInput[];
   /** Reemplaza TODOS los pagos de la venta (uno por método). */
   payments: SalePaymentInput[];
+  /** Código de promotora (null = sin código). */
+  promoterId: number | null;
 }
 
 /** Lo que devuelve la RPC `create_sale`. */
@@ -182,6 +186,9 @@ export interface SaleListRow {
   createdAt: string;
   employeeName: string | null;
   customerName: string | null;
+  /** Código y nombre de la promotora de la venta (null = sin código). */
+  promoterCode: string | null;
+  promoterName: string | null;
 }
 
 /** Una línea de una venta, ya resuelta para pintar / editar. */
@@ -207,6 +214,7 @@ export interface SaleDetail {
   discount: number;
   total: number;
   customerId: number | null;
+  promoterId: number | null;
   items: SaleItemRow[];
   /** Incluye los reembolsos de devoluciones (monto negativo). */
   payments: SalePaymentRow[];

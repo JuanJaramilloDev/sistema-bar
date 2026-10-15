@@ -2,18 +2,36 @@
 
   <div class="page__head">
     <div>
-      <h1 class="page__title">Reportes</h1>
-      <span class="page__subtitle">Resumen de ventas · {{ rangeLabel() }}</span>
+      <h1 class="page__title">{{ view() === 'closings' ? 'Cierres' : 'Reportes' }}</h1>
+      <span class="page__subtitle">
+        @if (view() === 'closings') { Cierre semanal y mensual · historial de cierres }
+        @else { Resumen de ventas · {{ rangeLabel() }} }
+      </span>
     </div>
     <div class="actions no-print">
+      @if (view() === 'closings') {
+        <button type="button" class="btn btn-ghost" (click)="view.set('report')">‹ Volver a reportes</button>
+        <button type="button" class="btn btn-ghost" (click)="exportPdf()">Exportar PDF</button>
+      } @else {
+      <button type="button" class="btn btn-primary" (click)="view.set('closings')">
+        Cierres
+      </button>
       <button type="button" class="btn btn-ghost" (click)="exportCsv()" [disabled]="!summary()">
         Exportar Excel
       </button>
       <button type="button" class="btn btn-ghost" (click)="exportPdf()" [disabled]="!summary()">
         Exportar PDF
       </button>
+      }
     </div>
   </div>
+
+  @if (view() === 'closings') {
+    <div class="print-header">
+      <strong>Portón Rojo</strong> · Cierres
+    </div>
+    <app-closings />
+  } @else {
 
   <!-- Solo aparece al imprimir / exportar a PDF -->
   <div class="print-header">
@@ -290,6 +308,7 @@
       </button>
     </div>
   </section>
+  }
 </div>
 
 <!-- Modal: confirmar borrado total (doble verificación) -->

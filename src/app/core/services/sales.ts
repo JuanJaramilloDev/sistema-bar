@@ -1,4 +1,5 @@
 import { Injectable, inject } from '@angular/core';
+import { currentJornadaStart } from '../utils/jornada';
 import { Supabase } from './supabase';
 import type {
   AbonoRow,
@@ -69,7 +70,8 @@ export class Sales {
       p_customer_id: input.customerId ? Number(input.customerId) : null,
       p_discount: Math.max(0, Math.round(Number(input.discount) || 0)),
       p_items: items,
-      p_payments: toPaymentsParam(input.payments)
+      p_payments: toPaymentsParam(input.payments),
+      p_promoter_id: input.promoterId ? Number(input.promoterId) : null
     });
 
     if (error) {
@@ -86,7 +88,7 @@ export class Sales {
   async list(range: SalesRange = 'week', search = ''): Promise<SaleListRow[]> {
     let query = this.db
       .from('sales')
-      .select('id, invoice_number, subtotal, discount, total, status, customer_id, user_id, created_at')
+      .select('id, invoice_number, subtotal, discount, total, status, customer_id, user_id, created_at, promoters(code, name)')
       .order('created_at', { ascending: false })
       .limit(500);
 
@@ -106,6 +108,7 @@ export class Sales {
         customer_id: number | null;
         user_id: string | null;
         created_at: string;
+        promoters: { code: string; name: string } | null;
       }[]
     >();
 
@@ -149,7 +152,9 @@ export class Sales {
           customerId: r.customer_id,
           createdAt: r.created_at,
           employeeName: r.user_id ? employees.get(r.user_id) ?? null : null,
-          customerName: r.customer_id ? customers.get(r.customer_id) ?? null : null
+          customerName: r.customer_id ? customers.get(r.customer_id) ?? null : null,
+          promoterCode: r.promoters?.code ?? null,
+          promoterName: r.promoters?.name ?? null
         } satisfies SaleListRow;
       })
       .filter((row) => {
@@ -159,7 +164,9 @@ export class Sales {
         return (
           String(row.invoiceNumber ?? '').includes(term) ||
           (row.customerName ?? '').toLowerCase().includes(term) ||
-          (row.employeeName ?? '').toLowerCase().includes(term)
+          (row.employeeName ?? '').toLowerCase().includes(term) ||
+          (row.promoterCode ?? '').toLowerCase().includes(term) ||
+          (row.promoterName ?? '').toLowerCase().includes(term)
         );
       });
   }
@@ -169,13 +176,14 @@ export class Sales {
     const [sale, items, payments] = await Promise.all([
       this.db
         .from('sales')
-        .select('subtotal, discount, total, customer_id')
+        .select('subtotal, discount, total, customer_id, promoter_id')
         .eq('id', saleId)
         .single<{
           subtotal: number | null;
           discount: number | null;
           total: number | null;
           customer_id: number | null;
+          promoter_id: number | null;
         }>(),
       this.db
         .from('sale_items')
@@ -211,6 +219,7 @@ export class Sales {
       discount: sale.data?.discount ?? 0,
       total: sale.data?.total ?? 0,
       customerId: sale.data?.customer_id ?? null,
+      promoterId: sale.data?.promoter_id ?? null,
       items: (items.data ?? []).map((r) => ({
         id: r.id,
         productId: r.product_id,
@@ -350,7 +359,8 @@ export class Sales {
       p_customer_id: input.customerId ? Number(input.customerId) : null,
       p_discount: Math.max(0, Math.round(Number(input.discount) || 0)),
       p_items: items,
-      p_payments: toPaymentsParam(input.payments)
+      p_payments: toPaymentsParam(input.payments),
+      p_promoter_id: input.promoterId ? Number(input.promoterId) : null
     });
 
     if (error) {
@@ -787,10 +797,9 @@ function unique<T extends string | number>(values: (T | null)[]): T[] {
 function rangeStartIso(range: SalesRange): string | null {
   const now = new Date();
   switch (range) {
-    case 'today': {
-      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      return start.toISOString();
-    }
+    case 'today':
+      // "Hoy" = la jornada del bar (de mediodía a mediodía), no el día de calendario.
+      return currentJornadaStart().toISOString();
     case 'week':
       return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
     case 'month':

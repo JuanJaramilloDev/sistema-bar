@@ -12,6 +12,7 @@ import { Sales as SalesApi } from '../../../core/services/sales';
 import { Products } from '../../../core/services/products';
 import { Inventory } from '../../../core/services/inventory';
 import { Customers } from '../../../core/services/customers';
+import { Promoters } from '../../../core/services/promoters';
 import { Realtime } from '../../../core/services/realtime';
 import { humanizeDbError, type DbError } from '../../../core/services/supabase';
 import { CurrencyPipe } from '../../../shared/pipes/currency-pipe';
@@ -33,8 +34,10 @@ import type {
   SalesRange
 } from '../../../core/models/sale';
 import type { Customer } from '../../../core/models/customer';
+import type { Promoter } from '../../../core/models/promoter';
 import type { Category } from '../../../core/models/category';
 import { Categories as CategoriesApi } from '../../../core/services/categories';
+import { isCurrentJornada } from '../../../core/utils/jornada';
 
 type ViewState = 'loading' | 'ready' | 'error';
 type Notice = { text: string; kind: 'ok' | 'err' };
@@ -226,6 +229,7 @@ export class Sales {
   private readonly productsApi = inject(Products);
   private readonly inventoryApi = inject(Inventory);
   private readonly customersApi = inject(Customers);
+  private readonly promotersApi = inject(Promoters);
   private readonly categoriesApi = inject(CategoriesApi);
   private readonly realtime = inject(Realtime);
   private readonly auth = inject(Auth);
@@ -236,6 +240,8 @@ export class Sales {
   protected readonly isAdmin = this.auth.isAdmin;
   protected readonly methods = PAYMENT_METHODS;
   protected readonly methodLabel = paymentMethodLabel;
+  /** Las devoluciones solo se permiten en la misma jornada de la venta. */
+  protected readonly canReturn = (s: SaleListRow): boolean => isCurrentJornada(s.createdAt);
 
   readonly tab = signal<Tab>('register');
   readonly notice = signal<Notice | null>(null);
@@ -245,6 +251,10 @@ export class Sales {
   readonly catalog = signal<CatalogEntry[]>([]);
   readonly categories = signal<Category[]>([]);
   readonly customers = signal<Customer[]>([]);
+  /** Todas las promotoras (las inactivas solo para mostrar el código de ventas viejas). */
+  readonly allPromoters = signal<Promoter[]>([]);
+  /** Solo las activas se pueden asignar a una venta nueva. */
+  readonly promoters = computed(() => this.allPromoters().filter((pr) => pr.active));
   readonly productSearch = signal('');
   /** Categoría desplegada en el catálogo (solo una a la vez). Null = ninguna. */
   readonly expandedCategoryId = signal<number | 'none' | null>(null);
@@ -252,6 +262,7 @@ export class Sales {
   readonly cart = signal<CartLine[]>([]);
   readonly discount = signal(0);
   readonly customerId = signal<number | null>(null);
+  readonly promoterId = signal<number | null>(null);
   /** Cobro de la venta nueva (uno o varios métodos). */
   readonly pay = new PaySplit(() => this.total());
 
@@ -343,7 +354,9 @@ export class Sales {
       (s) =>
         String(s.invoiceNumber ?? '').includes(q) ||
         (s.customerName ?? '').toLowerCase().includes(q) ||
-        (s.employeeName ?? '').toLowerCase().includes(q)
+        (s.employeeName ?? '').toLowerCase().includes(q) ||
+        (s.promoterCode ?? '').toLowerCase().includes(q) ||
+        (s.promoterName ?? '').toLowerCase().includes(q)
     );
   });
 
@@ -413,6 +426,12 @@ export class Sales {
   readonly editItems = signal<CartLine[]>([]);
   readonly editDiscount = signal(0);
   readonly editCustomerId = signal<number | null>(null);
+  readonly editPromoterId = signal<number | null>(null);
+  /** Activas + la que ya tenía la venta (aunque esté inactiva). */
+  readonly editPromoterOptions = computed(() => {
+    const current = this.editPromoterId();
+    return this.allPromoters().filter((pr) => pr.active || pr.id === current);
+  });
   /** Cobro de la venta en edición (uno o varios métodos). */
   readonly editPay = new PaySplit(() => this.editTotal());
   readonly editSaving = signal(false);
@@ -481,11 +500,12 @@ export class Sales {
       this.catalogState.set('loading');
     }
     try {
-      const [catalog, stock, customers, categories] = await Promise.all([
+      const [catalog, stock, customers, categories, promoters] = await Promise.all([
         this.productsApi.catalog(),
         this.inventoryApi.list(),
         this.customersApi.list(),
-        this.categoriesApi.list()
+        this.categoriesApi.list(),
+        this.promotersApi.list()
       ]);
       const stockByProduct = new Map(stock.map((s) => [s.productId, s.quantity]));
       this.catalog.set(
@@ -501,6 +521,7 @@ export class Sales {
           .sort((a, b) => a.name.localeCompare(b.name))
       );
       this.customers.set(customers);
+      this.allPromoters.set(promoters);
       this.categories.set(categories);
       this.catalogState.set('ready');
     } catch (err) {
@@ -576,6 +597,7 @@ export class Sales {
     this.cart.set([]);
     this.discount.set(0);
     this.customerId.set(null);
+    this.promoterId.set(null);
     this.pay.reset();
     this.formError.set('');
   }
@@ -588,6 +610,10 @@ export class Sales {
 
   onCustomer(value: string): void {
     this.customerId.set(value ? Number(value) : null);
+  }
+
+  onPromoter(value: string): void {
+    this.promoterId.set(value ? Number(value) : null);
   }
 
   // ------------------------------------------------------------- registrar ---
@@ -613,7 +639,8 @@ export class Sales {
           quantity: l.quantity,
           unit_price: l.unitPrice
         })),
-        payments: this.pay.payments()
+        payments: this.pay.payments(),
+        promoterId: this.promoterId()
       });
       this.lastSale.set(result);
       this.clearCart();
@@ -817,6 +844,7 @@ export class Sales {
       );
       this.editDiscount.set(detail.discount);
       this.editCustomerId.set(detail.customerId);
+      this.editPromoterId.set(detail.promoterId);
 
       this.editPay.load(detail.payments, detail.total);
     } catch (err) {
@@ -858,6 +886,9 @@ export class Sales {
   editOnCustomer(value: string): void {
     this.editCustomerId.set(value ? Number(value) : null);
   }
+  editOnPromoter(value: string): void {
+    this.editPromoterId.set(value ? Number(value) : null);
+  }
 
   async submitEdit(): Promise<void> {
     const sale = this.editSale();
@@ -886,7 +917,8 @@ export class Sales {
             quantity: l.quantity,
             unit_price: l.unitPrice
           })),
-        payments: this.editPay.payments()
+        payments: this.editPay.payments(),
+        promoterId: this.editPromoterId()
       });
       this.editSale.set(null);
       this.detailCache.update((c) => {
@@ -1006,6 +1038,12 @@ function friendlySaleError(error: DbError): string {
   }
   if (message.includes('PENDING_NEEDS_CUSTOMER') || message.includes('CUSTOMER_REQUIRED')) {
     return 'La venta queda con saldo pendiente: debes asignar un cliente.';
+  }
+  if (message.includes('RETURN_SAME_DAY_ONLY')) {
+    return 'Solo se pueden hacer devoluciones el mismo día (jornada) de la venta.';
+  }
+  if (message.includes('PROMOTER_NOT_FOUND')) {
+    return 'El código de promotora ya no está activo. Elige otro o déjalo vacío.';
   }
   if (message.includes('CUSTOMER_NOT_FOUND')) {
     return 'El cliente seleccionado ya no existe.';

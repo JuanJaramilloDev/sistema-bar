@@ -28,6 +28,7 @@ const ICONS: Record<string, string> = {
   layers: 'M12 2l9 5-9 5-9-5 9-5ZM3 12l9 5 9-5M3 17l9 5 9-5',
   file: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 13h6M9 17h6',
   chart: 'M3 21h18M7 21V11M12 21V5M17 21v-7',
+  star: 'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z',
   userCheck: 'M16 20v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8M16 11l2 2 4-4'
 };
 
@@ -40,6 +41,7 @@ const ADMIN_NAV: NavItem[] = [
   { label: 'Inventario', path: '/admin/inventory', icon: 'box', ready: true },
   { label: 'Facturas', path: '/admin/invoices', icon: 'file', ready: false },
   { label: 'Reportes', path: '/admin/reports', icon: 'chart', ready: true },
+  { label: 'Promotoras', path: '/admin/promoters', icon: 'star', ready: true },
   { label: 'Empleados', path: '/admin/employees', icon: 'userCheck', ready: true },
   { label: 'Clientes', path: '/admin/customers', icon: 'users', ready: true }
 ];

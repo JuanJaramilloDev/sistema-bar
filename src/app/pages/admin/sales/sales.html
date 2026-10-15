@@ -232,6 +232,7 @@
 
                   <ng-container *ngTemplateOutlet="payBlock; context: { $implicit: pay, id: 's', title: '¿Cómo se paga?' }" />
 
+                  <div class="form-grid">
                   @if (customerRequired()) {
                     <div class="field">
                       <label for="s-customer">Cliente <span class="hint">(obligatorio: queda saldo pendiente)</span></label>
@@ -253,6 +254,17 @@
                       </select>
                     </div>
                   }
+
+                  <div class="field">
+                    <label for="s-promoter">Código <span class="hint">(opcional: promotora)</span></label>
+                    <select id="s-promoter" class="select" [value]="promoterId() ?? ''" (change)="onPromoter($any($event.target).value)">
+                      <option value="">— Sin código —</option>
+                      @for (pr of promoters(); track pr.id) {
+                        <option [value]="pr.id">{{ pr.code }} · {{ pr.name }}</option>
+                      }
+                    </select>
+                  </div>
+                  </div>
 
                   <div class="totals totals--cobro">
                     <div class="totals__row"><span>Pagado ahora</span><span>{{ pay.paid() | currency }}</span></div>
@@ -285,7 +297,7 @@
       <input
         type="search"
         class="input toolbar__search"
-        placeholder="Buscar por factura, cliente o empleado…"
+        placeholder="Buscar por factura, cliente, promotora o empleado…"
         [value]="listSearch()"
         (input)="listSearch.set($any($event.target).value)"
       />
@@ -357,6 +369,7 @@
                       <th class="col-tight">Factura</th>
                       <th class="col-tight">Fecha</th>
                       <th>Cliente</th>
+                      <th>Promotora</th>
                       <th>Empleado</th>
                       <th class="num">Total</th>
                       <th class="num">Pagado</th>
@@ -377,6 +390,11 @@
                         </td>
                         <td class="col-tight">{{ s.createdAt | date:'dd/MM/yy HH:mm' }}</td>
                         <td>{{ s.customerName ?? '—' }}</td>
+                        <td>
+                          @if (s.promoterCode) {
+                            <span class="promo-code" [title]="s.promoterName ?? ''">{{ s.promoterCode }}</span>
+                          } @else { — }
+                        </td>
                         <td>{{ s.employeeName ?? '—' }}</td>
                         <td class="num">{{ s.total | currency }}</td>
                         <td class="num">{{ s.paid | currency }}</td>
@@ -391,9 +409,11 @@
                                   <app-icon name="edit" />
                                 </button>
                               }
-                              <button type="button" class="icon-btn" title="Devolución" (click)="openReturn(s)">
-                                <app-icon name="undo" />
-                              </button>
+                              @if (canReturn(s)) {
+                                <button type="button" class="icon-btn" title="Devolución" (click)="openReturn(s)">
+                                  <app-icon name="undo" />
+                                </button>
+                              }
                             }
                             <button
                               type="button"
@@ -409,7 +429,7 @@
                       </tr>
                       @if (expandedId() === s.id) {
                         <tr class="detail-row">
-                          <td colspan="8">
+                          <td colspan="9">
                             @if (detailLoadingId() === s.id) {
                               <app-loading message="Cargando detalle…" />
                             } @else if (detailCache()[s.id]; as d) {
@@ -602,6 +622,7 @@
 
         <ng-container *ngTemplateOutlet="payBlock; context: { $implicit: editPay, id: 'e', title: 'Pago' }" />
 
+        <div class="form-grid">
         <div class="field">
           <label for="e-customer">
             Cliente
@@ -620,6 +641,22 @@
               <option [value]="c.id">{{ c.name }}</option>
             }
           </select>
+        </div>
+
+        <div class="field">
+          <label for="e-promoter">Código <span class="hint">(opcional: promotora)</span></label>
+          <select
+            id="e-promoter"
+            class="select"
+            [value]="editPromoterId() ?? ''"
+            (change)="editOnPromoter($any($event.target).value)"
+          >
+            <option value="">— Sin código —</option>
+            @for (pr of editPromoterOptions(); track pr.id) {
+              <option [value]="pr.id">{{ pr.code }} · {{ pr.name }}{{ pr.active ? '' : ' (inactiva)' }}</option>
+            }
+          </select>
+        </div>
         </div>
 
         <div class="totals totals--cobro">
@@ -757,7 +794,7 @@
 <ng-template #payBlock let-pay let-id="id" let-title="title">
   <div class="field">
     <label>{{ title }}</label>
-    <div class="seg">
+    <div class="seg seg--full">
       <button type="button" class="seg__btn" [class.is-active]="pay.mode() === 'full'" (click)="pay.setMode('full')">Pago completo</button>
       <button type="button" class="seg__btn" [class.is-active]="pay.mode() === 'custom'" (click)="pay.setMode('custom')">Abono parcial</button>
     </div>

@@ -1,0 +1,24 @@
+:host {
+  display: block;
+}
+
+.totals-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Alturas a la medida de estas filas (~45px + encabezado): 2 y 3 filas visibles */
+.table-wrap--scroll-2 {
+  max-height: 136px;
+}
+.table-wrap--scroll-3 {
+  max-height: 182px;
+}

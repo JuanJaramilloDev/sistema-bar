@@ -1,0 +1,405 @@
+<div class="page">
+
+  <div class="page__head">
+    <div>
+      <h1 class="page__title">Promotoras</h1>
+      <span class="page__subtitle">Códigos que se asignan a cada venta</span>
+    </div>
+    <button type="button" class="btn btn-primary" (click)="openCreate()">
+      <app-icon name="plus" /> Nueva promotora
+    </button>
+  </div>
+
+  @if (notice(); as n) {
+    <div
+      class="alert notice-alert"
+      [class.alert-success]="n.kind === 'ok'"
+      [class.alert-danger]="n.kind === 'err'"
+      (click)="dismissNotice()"
+    >
+      {{ n.text }}
+    </div>
+  }
+
+  <div class="toolbar">
+    <input
+      type="search"
+      class="input toolbar__search"
+      placeholder="Buscar por código o nombre…"
+      [value]="search()"
+      (input)="search.set($any($event.target).value)"
+    />
+  </div>
+
+  <section class="card panel">
+    <div class="panel__body">
+      @switch (state()) {
+        @case ('loading') {
+          <app-loading message="Cargando promotoras…" />
+        }
+        @case ('error') {
+          <div class="panel__body--pad">
+            <div class="alert alert-danger">
+              No fue posible cargar las promotoras.
+              <button type="button" class="link-btn" (click)="load()">Reintentar</button>
+            </div>
+          </div>
+        }
+        @default {
+          @if (all().length === 0) {
+            <app-empty
+              title="Aún no hay promotoras"
+              hint="Crea la primera con su código para poder asignarlo en las ventas."
+            />
+          } @else if (filtered().length === 0) {
+            <app-empty title="Ninguna promotora coincide con la búsqueda" />
+          } @else {
+            <div class="table-wrap table-wrap--scroll-4">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th class="col-tight">Código</th>
+                    <th>Nombre</th>
+                    <th class="col-tight">Estado</th>
+                    <th class="col-tight">Creada</th>
+                    <th class="col-tight">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (promoter of filtered(); track promoter.id) {
+                    <tr [class.is-inactive]="!promoter.active">
+                      <td class="col-tight code">{{ promoter.code }}</td>
+                      <td class="cell-main__name">{{ promoter.name }}</td>
+                      <td class="col-tight">
+                        <span
+                          class="badge"
+                          [class.badge--success]="promoter.active"
+                          [class.badge--neutral]="!promoter.active"
+                        >
+                          {{ promoter.active ? 'Activa' : 'Inactiva' }}
+                        </span>
+                      </td>
+                      <td class="col-tight">{{ promoter.created_at | date:'dd/MM/yy' }}</td>
+                      <td class="col-tight">
+                        <div class="actions">
+                          <button
+                            type="button"
+                            class="icon-btn"
+                            title="Editar"
+                            (click)="openEdit(promoter)"
+                          >
+                            <app-icon name="edit" />
+                          </button>
+                          <button
+                            type="button"
+                            class="icon-btn"
+                            [title]="promoter.active ? 'Desactivar' : 'Activar'"
+                            [disabled]="busyId() === promoter.id"
+                            (click)="toggleActive(promoter)"
+                          >
+                            <app-icon name="power" />
+                          </button>
+                          <button
+                            type="button"
+                            class="icon-btn icon-btn--danger"
+                            title="Eliminar"
+                            (click)="askDelete(promoter)"
+                          >
+                            <app-icon name="trash" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        }
+      }
+    </div>
+  </section>
+
+  <!-- Comisiones del mes -->
+  <section class="card panel">
+    <div class="panel__head">
+      <h2 class="panel__title">Comisiones del mes</h2>
+    </div>
+    <div class="panel__body panel__body--pad report">
+      <div class="report__controls">
+        <div class="field">
+          <label for="pro-month">Mes</label>
+          <input
+            id="pro-month"
+            type="month"
+            class="input"
+            [value]="month()"
+            (change)="onMonth($any($event.target).value)"
+          />
+        </div>
+        <div class="field">
+          <label for="pro-pct">Comisión <span class="hint">(igual para todas)</span></label>
+          <div class="pct">
+            <input
+              id="pro-pct"
+              type="number"
+              class="input pct__input"
+              min="0"
+              max="100"
+              step="0.5"
+              [value]="pctDraft()"
+              (input)="pctDraft.set($any($event.target).value)"
+              (keydown.enter)="savePct()"
+            />
+            <span class="pct__sign">%</span>
+            <button
+              type="button"
+              class="btn btn-primary"
+              [disabled]="!pctDirty() || pctSaving()"
+              (click)="savePct()"
+            >
+              @if (pctSaving()) { <span class="spinner"></span> } Guardar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <p class="report__note">
+        Solo cuentan las ventas del mes <strong>pagadas por completo</strong>.
+        Las que aún tienen deuda aparecen como pendientes y suman a la comisión
+        cuando se terminan de pagar.
+      </p>
+
+      @switch (reportState()) {
+        @case ('loading') {
+          <app-loading message="Calculando comisiones…" />
+        }
+        @case ('error') {
+          <div class="alert alert-danger">
+            No fue posible cargar el reporte.
+            <button type="button" class="link-btn" (click)="loadReport()">Reintentar</button>
+          </div>
+        }
+        @default {
+          @if (reportLines().length === 0) {
+            <app-empty title="Aún no hay promotoras" />
+          } @else {
+            <div class="stats">
+              <div class="card stat">
+                <span class="stat__label">Vendido y pagado</span>
+                <span class="stat__value">{{ reportTotals().paid | currency }}</span>
+              </div>
+              <div class="card stat stat--accent">
+                <span class="stat__label">Comisiones ({{ pct() }}%)</span>
+                <span class="stat__value">{{ reportTotals().commission | currency }}</span>
+              </div>
+              <div class="card stat" [class.stat--warn]="reportTotals().toPay > 0">
+                <span class="stat__label">Falta pagar a promotoras</span>
+                <span class="stat__value">{{ reportTotals().toPay | currency }}</span>
+                <span class="stat__hint">Ya pagado: {{ reportTotals().paidOut | currency }}</span>
+              </div>
+              <div class="card stat" [class.stat--warn]="reportTotals().pending > 0">
+                <span class="stat__label">Pendiente por cobrar</span>
+                <span class="stat__value">{{ reportTotals().pending | currency }}</span>
+                <span class="stat__hint">{{ reportTotals().pendingCount }} venta(s) con deuda</span>
+              </div>
+            </div>
+
+            <div class="table-wrap table-wrap--scroll-4">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th class="col-tight">Código</th>
+                    <th>Nombre</th>
+                    <th class="col-tight num">Ventas pagadas</th>
+                    <th class="col-tight num">Total pagado</th>
+                    <th class="col-tight num">Comisión</th>
+                    <th class="col-tight num">Pendientes</th>
+                    <th class="col-tight">Pago</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (r of reportLines(); track r.promoterId) {
+                    <tr [class.is-inactive]="!r.active">
+                      <td class="col-tight code">{{ r.code }}</td>
+                      <td class="cell-main__name">{{ r.name }}</td>
+                      <td class="col-tight num">{{ r.paidCount }}</td>
+                      <td class="col-tight num">{{ r.paidTotal | currency }}</td>
+                      <td class="col-tight num commission">{{ r.commission | currency }}</td>
+                      <td class="col-tight num">
+                        @if (r.pendingCount > 0) {
+                          {{ r.pendingCount }} · {{ r.pendingTotal | currency }}
+                        } @else { — }
+                      </td>
+                      <td class="col-tight">
+                        @if (r.payout; as po) {
+                          <div class="payout">
+                            <span class="badge badge--success" [title]="po.notes ?? ''">
+                              Pagado {{ po.amount | currency }} · {{ po.paid_at | date:'dd/MM' }}
+                            </span>
+                            <button
+                              type="button"
+                              class="link-btn"
+                              [disabled]="payBusyId() === r.promoterId"
+                              (click)="undoPay(r)"
+                            >Deshacer</button>
+                          </div>
+                        } @else if (r.commission > 0) {
+                          <button type="button" class="btn btn-primary btn-sm" (click)="openPay(r)">
+                            Marcar pagado
+                          </button>
+                        } @else {
+                          <span class="badge badge--neutral">Sin comisión</span>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        }
+      }
+    </div>
+  </section>
+</div>
+
+<!-- Modal: crear / editar -->
+<app-modal
+  [open]="formOpen()"
+  [locked]="saving()"
+  [title]="editing() ? 'Editar promotora' : 'Nueva promotora'"
+  (closed)="closeForm()"
+>
+  <form class="form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <div class="field">
+      <label for="pro-code">Código <span class="hint">(se guarda en mayúsculas, sin espacios)</span></label>
+      <input
+        id="pro-code"
+        type="text"
+        class="input code"
+        formControlName="code"
+        placeholder="Ej. LAURA10"
+        autocomplete="off"
+        [class.is-invalid]="form.controls.code.touched && form.controls.code.invalid"
+      />
+      @if (form.controls.code.touched && form.controls.code.invalid) {
+        <span class="field-error">El código es obligatorio.</span>
+      }
+    </div>
+
+    <div class="field">
+      <label for="pro-name">Nombre de la persona</label>
+      <input
+        id="pro-name"
+        type="text"
+        class="input"
+        formControlName="name"
+        placeholder="Ej. Laura Gómez"
+        [class.is-invalid]="form.controls.name.touched && form.controls.name.invalid"
+      />
+      @if (form.controls.name.touched && form.controls.name.invalid) {
+        <span class="field-error">El nombre es obligatorio.</span>
+      }
+    </div>
+
+    @if (formError()) {
+      <div class="alert alert-danger">{{ formError() }}</div>
+    }
+
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" (click)="closeForm()" [disabled]="saving()">
+        Cancelar
+      </button>
+      <button type="submit" class="btn btn-primary" [disabled]="saving()">
+        @if (saving()) { <span class="spinner"></span> Guardando… }
+        @else { {{ editing() ? 'Guardar cambios' : 'Crear promotora' }} }
+      </button>
+    </div>
+  </form>
+</app-modal>
+
+<!-- Modal: confirmar borrado -->
+<app-modal
+  [open]="deleteTarget() !== null"
+  [locked]="deleting()"
+  title="Eliminar promotora"
+  (closed)="cancelDelete()"
+>
+  @if (deleteTarget(); as target) {
+    <p>
+      ¿Eliminar a <strong>{{ target.name }}</strong> (código <strong>{{ target.code }}</strong>)?
+      Esta acción no se puede deshacer.
+    </p>
+    @if (deleteError()) {
+      <div class="alert alert-danger">{{ deleteError() }}</div>
+    }
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" (click)="cancelDelete()" [disabled]="deleting()">
+        Cancelar
+      </button>
+      <button type="button" class="btn btn-danger" (click)="confirmDelete()" [disabled]="deleting()">
+        @if (deleting()) { <span class="spinner"></span> Eliminando… }
+        @else { Eliminar }
+      </button>
+    </div>
+  }
+</app-modal>
+
+<!-- Modal: registrar pago de comisión -->
+<app-modal
+  [open]="payTarget() !== null"
+  [locked]="paySaving()"
+  title="Registrar pago de comisión"
+  (closed)="closePay()"
+>
+  @if (payTarget(); as t) {
+    <div class="form">
+      <p>
+        Comisión de <strong>{{ t.name }}</strong> (<span class="code">{{ t.code }}</span>)
+        del mes <strong>{{ month() }}</strong>: {{ t.commission | currency }}
+        ({{ pct() }}% de {{ t.paidTotal | currency }}).
+      </p>
+
+      <div class="field">
+        <label for="pay-amount">Monto pagado</label>
+        <input
+          id="pay-amount"
+          type="number"
+          inputmode="numeric"
+          min="0"
+          step="500"
+          class="input"
+          [value]="payAmount()"
+          (input)="payAmount.set(+$any($event.target).value)"
+        />
+      </div>
+
+      <div class="field">
+        <label for="pay-notes">Nota <span class="hint">(opcional: cómo se pagó, quién)</span></label>
+        <input
+          id="pay-notes"
+          type="text"
+          class="input"
+          placeholder="Ej. Nequi, efectivo…"
+          [value]="payNotes()"
+          (input)="payNotes.set($any($event.target).value)"
+        />
+      </div>
+
+      @if (payError()) {
+        <div class="alert alert-danger">{{ payError() }}</div>
+      }
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" (click)="closePay()" [disabled]="paySaving()">
+          Cancelar
+        </button>
+        <button type="button" class="btn btn-primary" (click)="confirmPay()" [disabled]="paySaving()">
+          @if (paySaving()) { <span class="spinner"></span> Guardando… }
+          @else { Registrar pago }
+        </button>
+      </div>
+    </div>
+  }
+</app-modal>

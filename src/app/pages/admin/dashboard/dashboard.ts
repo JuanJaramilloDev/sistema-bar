@@ -1,3 +1,4 @@
+import { currentJornadaStart, jornadaOf, jornadaStartOf } from '../../../core/utils/jornada';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -146,9 +147,11 @@ function timeWindow(): {
   outstandingFrom: string;
 } {
   const now = new Date();
+  const today = jornadaOf(now);
   return {
-    startOfToday: new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString(),
-    startOfMonth: new Date(now.getFullYear(), now.getMonth(), 1).toISOString(),
+    // "Hoy" y "este mes" siguen la jornada del bar (de mediodía a mediodía).
+    startOfToday: currentJornadaStart().toISOString(),
+    startOfMonth: jornadaStartOf(new Date(today.getFullYear(), today.getMonth(), 1)).toISOString(),
     // Ventana acotada para el pendiente por cobrar (ver Sales.outstandingSince).
     outstandingFrom: new Date(now.getFullYear(), now.getMonth() - 4, 1).toISOString()
   };

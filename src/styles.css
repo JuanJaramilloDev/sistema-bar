@@ -377,6 +377,10 @@ button {
 }
 /* Variantes más cortas para listas pequeñas (p. ej. Reportes): igual idea,
    solo cambia cuántas filas se ven antes de que aparezca el scroll. */
+.table-wrap--scroll-4 {
+  max-height: 240px;
+  overflow-y: auto;
+}
 .table-wrap--scroll-3 {
   max-height: 160px;
   overflow-y: auto;
@@ -386,6 +390,7 @@ button {
   overflow-y: auto;
 }
 .table-wrap--scroll thead th,
+.table-wrap--scroll-4 thead th,
 .table-wrap--scroll-3 thead th,
 .table-wrap--scroll-2 thead th {
   position: sticky;
@@ -460,8 +465,11 @@ button {
   flex-direction: column;
   gap: 20px;
   /* Entrada corta al cambiar de pantalla: confirma la navegación sin hacer
-     esperar. Se anula con `prefers-reduced-motion`. */
-  animation: page-in 0.22s ease both;
+     esperar. Se anula con `prefers-reduced-motion`.
+     `backwards` (no `both`): al terminar no deja un `transform` puesto, que
+     convertiría a .page en el contenedor de los `position: fixed` y los
+     modales anidados dentro de la página se abrirían fuera de la vista. */
+  animation: page-in 0.22s ease backwards;
 }
 @keyframes page-in {
   from { opacity: 0; transform: translateY(6px); }
@@ -1018,6 +1026,7 @@ button {
     padding: 0 !important;
   }
   .table-wrap--scroll,
+  .table-wrap--scroll-4,
   .table-wrap--scroll-3,
   .table-wrap--scroll-2 {
     max-height: none !important;
@@ -1039,4 +1048,26 @@ button {
   border-left: 3px solid var(--accent);
   background: var(--accent-soft);
   border-radius: var(--radius-sm);
+}
+
+/* Columna Promotora del listado: código destacado + nombre debajo */
+.promo-code {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+}
+.promo-name {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Pago completo / abono parcial: ocupan todo el ancho de la sección */
+.seg--full {
+  width: 100%;
+}
+.seg--full .seg__btn {
+  flex: 1;
 }

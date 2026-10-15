@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { Supabase } from './supabase';
+import { jornadaOf } from '../utils/jornada';
 import type { PaymentMethod } from '../models/payment';
 
 /** Agrupación de los reportes de ventas: por día o por mes. */
@@ -326,13 +327,14 @@ function emptySummary(outstandingNow: number): ReportSummary {
   };
 }
 
+/** Día de la JORNADA (una venta a la 1am cuenta en el día anterior). */
 function dayKey(iso: string): string {
-  const d = new Date(iso);
+  const d = jornadaOf(iso);
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 function monthKey(iso: string): string {
-  const d = new Date(iso);
+  const d = jornadaOf(iso);
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
 }
 

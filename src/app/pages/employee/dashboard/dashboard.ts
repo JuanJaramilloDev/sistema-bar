@@ -1,3 +1,4 @@
+import { currentJornadaStart } from '../../../core/utils/jornada';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -79,11 +80,8 @@ export class Dashboard {
       this.statsState.set('loading');
     }
     const now = new Date();
-    const startOfToday = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate()
-    ).toISOString();
+    // "Hoy" = la jornada del bar (de mediodía a mediodía).
+    const startOfToday = currentJornadaStart().toISOString();
     const outstandingFrom = new Date(
       now.getFullYear(),
       now.getMonth() - 4,

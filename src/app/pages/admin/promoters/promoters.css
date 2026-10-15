@@ -1,0 +1,64 @@
+:host {
+  display: block;
+}
+
+.notice-alert {
+  cursor: pointer;
+}
+
+.code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.report {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.report__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+}
+
+.report__note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.pct {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pct__input {
+  width: 96px;
+}
+
+.pct__sign {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.commission {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.payout {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
