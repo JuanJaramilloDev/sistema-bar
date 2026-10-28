@@ -23,6 +23,7 @@ import { Empty } from '../../../shared/components/empty/empty';
 import { Icon } from '../../../shared/components/icon/icon';
 import type { Profile } from '../../../core/models/user';
 
+import { ResponsiveTable } from '../../../shared/directives/responsive-table';
 type ViewState = 'loading' | 'ready' | 'error';
 type Notice = { text: string; kind: 'ok' | 'err' };
 
@@ -40,7 +41,7 @@ type Notice = { text: string; kind: 'ok' | 'err' };
  */
 @Component({
   selector: 'app-admin-employees',
-  imports: [DatePipe, ReactiveFormsModule, Modal, Loading, Empty, Icon],
+  imports: [ResponsiveTable, DatePipe, ReactiveFormsModule, Modal, Loading, Empty, Icon],
   templateUrl: './employees.html',
   styleUrl: './employees.css',
   changeDetection: ChangeDetectionStrategy.OnPush

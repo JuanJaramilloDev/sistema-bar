@@ -24,6 +24,7 @@ import { Icon } from '../../../shared/components/icon/icon';
 import type { Category } from '../../../core/models/category';
 import type { Product, ProductInput, ProductRow } from '../../../core/models/product';
 
+import { ResponsiveTable } from '../../../shared/directives/responsive-table';
 type ViewState = 'loading' | 'ready' | 'error';
 type Notice = { text: string; kind: 'ok' | 'err' };
 type StatusFilter = 'all' | 'active' | 'inactive';
@@ -34,7 +35,7 @@ type StatusFilter = 'all' | 'active' | 'inactive';
  */
 @Component({
   selector: 'app-admin-products',
-  imports: [ReactiveFormsModule, CurrencyPipe, Modal, Loading, Empty, Icon],
+  imports: [ResponsiveTable, ReactiveFormsModule, CurrencyPipe, Modal, Loading, Empty, Icon],
   templateUrl: './products.html',
   styleUrl: './products.css',
   changeDetection: ChangeDetectionStrategy.OnPush

@@ -27,6 +27,7 @@ import {
   type PaymentMethod
 } from '../../../core/models/payment';
 
+import { ResponsiveTable } from '../../../shared/directives/responsive-table';
 type ViewState = 'loading' | 'ready' | 'error';
 type Notice = { text: string; kind: 'ok' | 'err' };
 
@@ -44,7 +45,7 @@ type Notice = { text: string; kind: 'ok' | 'err' };
  */
 @Component({
   selector: 'app-customers',
-  imports: [DatePipe, ReactiveFormsModule, CurrencyPipe, Modal, Loading, Empty, Icon],
+  imports: [ResponsiveTable, DatePipe, ReactiveFormsModule, CurrencyPipe, Modal, Loading, Empty, Icon],
   templateUrl: './customers.html',
   styleUrl: './customers.css',
   changeDetection: ChangeDetectionStrategy.OnPush

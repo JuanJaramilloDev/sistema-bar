@@ -47,7 +47,6 @@ const ADMIN_NAV: NavItem[] = [
 ];
 
 const EMPLOYEE_NAV: NavItem[] = [
-  { label: 'Dashboard', path: '/employee/dashboard', icon: 'grid', ready: true },
   { label: 'Ventas', path: '/employee/sales', icon: 'cart', ready: true },
   { label: 'Abonar', path: '/employee/pending', icon: 'clock', ready: true },
   { label: 'Clientes', path: '/employee/customers', icon: 'users', ready: true },

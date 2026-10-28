@@ -15,6 +15,7 @@ import { humanizeDbError, type DbError } from '../../../core/services/supabase';
 import { Closings } from '../closings/closings';
 import { jornadaStartOf } from '../../../core/utils/jornada';
 
+import { ResponsiveTable } from '../../../shared/directives/responsive-table';
 type ViewState = 'loading' | 'ready' | 'error';
 type RangePreset = 'week' | 'month' | 'quarter' | 'year' | 'custom';
 type Notice = { text: string; kind: 'ok' | 'err' };
@@ -45,7 +46,7 @@ const WIPE_CONFIRM_WORD = 'BORRAR';
  */
 @Component({
   selector: 'app-reports',
-  imports: [CurrencyPipe, DatePipe, Loading, Empty, Icon, Modal, Closings],
+  imports: [ResponsiveTable, CurrencyPipe, DatePipe, Loading, Empty, Icon, Modal, Closings],
   templateUrl: './reports.html',
   styleUrl: './reports.css',
   changeDetection: ChangeDetectionStrategy.OnPush

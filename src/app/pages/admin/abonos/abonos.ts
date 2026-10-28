@@ -8,6 +8,7 @@ import { Empty } from '../../../shared/components/empty/empty';
 import { paymentMethodLabel } from '../../../core/models/payment';
 import type { AbonoRow, SalesRange } from '../../../core/models/sale';
 
+import { ResponsiveTable } from '../../../shared/directives/responsive-table';
 type ViewState = 'loading' | 'ready' | 'error';
 
 /**
@@ -18,7 +19,7 @@ type ViewState = 'loading' | 'ready' | 'error';
  */
 @Component({
   selector: 'app-admin-abonos',
-  imports: [DatePipe, CurrencyPipe, Loading, Empty],
+  imports: [ResponsiveTable, DatePipe, CurrencyPipe, Loading, Empty],
   templateUrl: './abonos.html',
   styleUrl: './abonos.css',
   changeDetection: ChangeDetectionStrategy.OnPush

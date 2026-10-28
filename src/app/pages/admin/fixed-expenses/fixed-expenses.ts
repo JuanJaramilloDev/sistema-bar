@@ -15,6 +15,7 @@ import { Modal } from '../../../shared/components/modal/modal';
 import { Icon } from '../../../shared/components/icon/icon';
 import type { FixedExpense } from '../../../core/models/fixed-expense';
 
+import { ResponsiveTable } from '../../../shared/directives/responsive-table';
 type ViewState = 'loading' | 'ready' | 'error';
 
 /** El cierre semanal aparta la cuarta parte del valor mensual. */
@@ -31,7 +32,7 @@ export function weeklyShare(monthly: number): number {
  */
 @Component({
   selector: 'app-fixed-expenses',
-  imports: [CurrencyPipe, Loading, Empty, Modal, Icon],
+  imports: [ResponsiveTable, CurrencyPipe, Loading, Empty, Modal, Icon],
   templateUrl: './fixed-expenses.html',
   styleUrl: './fixed-expenses.css',
   changeDetection: ChangeDetectionStrategy.OnPush

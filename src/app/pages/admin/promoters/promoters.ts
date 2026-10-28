@@ -25,6 +25,7 @@ import type {
   PromoterReportRow
 } from '../../../core/models/promoter';
 
+import { ResponsiveTable } from '../../../shared/directives/responsive-table';
 type ViewState = 'loading' | 'ready' | 'error';
 type Notice = { text: string; kind: 'ok' | 'err' };
 
@@ -49,7 +50,7 @@ interface ReportLine extends PromoterReportRow {
  */
 @Component({
   selector: 'app-admin-promoters',
-  imports: [DatePipe, ReactiveFormsModule, Modal, Loading, Empty, Icon, CurrencyPipe],
+  imports: [ResponsiveTable, DatePipe, ReactiveFormsModule, Modal, Loading, Empty, Icon, CurrencyPipe],
   templateUrl: './promoters.html',
   styleUrl: './promoters.css',
   changeDetection: ChangeDetectionStrategy.OnPush

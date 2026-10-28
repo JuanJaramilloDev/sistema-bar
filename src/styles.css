@@ -454,6 +454,120 @@ button {
 }
 
 /* -------------------------------------------------------------------------
+   Tablas en celular (directiva ResponsiveTable)
+   Cada fila se vuelve una tarjeta: arriba lo principal (.rt-main / .rt-keep)
+   y una flecha; al tocarla se despliegan las demás columnas (.rt-extra) como
+   "Etiqueta: valor". Así nunca hay scroll horizontal.
+   ------------------------------------------------------------------------- */
+@media (max-width: 640px) {
+  .table-wrap:has(> .table.rt) {
+    overflow-x: visible;
+  }
+  .table-wrap--scroll:has(> .table.rt) {
+    max-height: 70vh;
+  }
+  .table.rt {
+    display: block;
+    min-width: 0;
+  }
+  .table.rt thead {
+    display: none;
+  }
+  .table.rt tbody,
+  .table.rt tfoot {
+    display: block;
+  }
+  .table.rt tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 12px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .table.rt tbody tr:last-child {
+    border-bottom: none;
+  }
+  .table.rt td {
+    display: block;
+    padding: 0;
+    border: none;
+    width: auto;
+    min-width: 0;
+  }
+  .table.rt td.rt-main {
+    flex: 1 1 0;
+    font-weight: 600;
+  }
+  .table.rt td.rt-keep {
+    flex: 0 1 auto;
+    max-width: 50%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: right;
+  }
+  /* Flecha: indica que la fila se puede desplegar. */
+  .table.rt tr.rt-foldable {
+    cursor: pointer;
+  }
+  .table.rt tr.rt-foldable::after {
+    content: "";
+    order: 1;
+    width: 7px;
+    height: 7px;
+    margin: 0 2px 3px 2px;
+    border-right: 2px solid var(--text-dim);
+    border-bottom: 2px solid var(--text-dim);
+    transform: rotate(45deg);
+    transition: transform 0.15s ease;
+  }
+  .table.rt tr.rt-open::after {
+    transform: rotate(-135deg);
+    margin-bottom: -3px;
+  }
+  .table.rt td.rt-extra {
+    display: none;
+    order: 2;
+    flex: 1 1 100%;
+  }
+  .table.rt tr.rt-open td.rt-extra {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 7px 0 0;
+    margin-top: 3px;
+    border-top: 1px dashed var(--border);
+    text-align: right;
+    white-space: normal;
+    max-width: none;
+    overflow-wrap: anywhere;
+  }
+  .table.rt tr.rt-open td.rt-extra::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+    text-align: left;
+  }
+  /* Detalle desplegado / totales: ancho completo, sin plegar. */
+  .table.rt tr.rt-full {
+    display: block;
+  }
+  .table.rt tr.rt-full > td {
+    display: block;
+  }
+  .table.rt tfoot tr.rt-full {
+    display: flex;
+    justify-content: space-between;
+  }
+}
+
+/* -------------------------------------------------------------------------
    Estructura de página (dashboards y módulos)
    ------------------------------------------------------------------------- */
 

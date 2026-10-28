@@ -67,7 +67,7 @@
                 </thead>
                 <tbody>
                   @for (category of filtered(); track category.id) {
-                    <tr [class.is-inactive]="!category.active">
+                    <tr [class.is-inactive]="!category.active" [class.is-open]="expandedId() === category.id">
                       <td class="cell-main__name">{{ category.name }}</td>
                       <td class="cell-main__sub">{{ category.description || '—' }}</td>
                       <td class="col-tight">
@@ -82,6 +82,15 @@
                       <td class="col-tight">{{ category.created_at | date:'dd/MM/yy' }}</td>
                       <td class="col-tight">
                         <div class="actions">
+                          <button
+                            type="button"
+                            class="icon-btn chevron"
+                            [class.chevron--open]="expandedId() === category.id"
+                            [title]="expandedId() === category.id ? 'Ocultar productos' : 'Ver productos'"
+                            (click)="toggleExpand(category)"
+                          >
+                            <app-icon name="chevronDown" />
+                          </button>
                           <button
                             type="button"
                             class="icon-btn"
@@ -110,6 +119,45 @@
                         </div>
                       </td>
                     </tr>
+                    @if (expandedId() === category.id) {
+                      <tr class="detail-row">
+                        <td colspan="5">
+                          @switch (productsState()) {
+                            @case ('loading') {
+                              <app-loading message="Cargando productos…" />
+                            }
+                            @case ('error') {
+                              <div class="alert alert-danger">
+                                No fue posible cargar los productos.
+                                <button type="button" class="link-btn" (click)="loadProducts()">Reintentar</button>
+                              </div>
+                            }
+                            @default {
+                              @if (productsOf(category.id); as products) {
+                                @if (products.length === 0) {
+                                  <p class="cat-products__empty">Esta categoría no tiene productos.</p>
+                                } @else {
+                                  <span class="cat-products__count">
+                                    {{ products.length }} {{ products.length === 1 ? 'producto' : 'productos' }}
+                                  </span>
+                                  <ul class="cat-products">
+                                    @for (p of products; track p.id) {
+                                      <li class="cat-products__item" [class.is-inactive]="!p.active">
+                                        <span class="cat-products__name">{{ p.name }}</span>
+                                        @if (!p.active) {
+                                          <span class="badge badge--neutral">Inactivo</span>
+                                        }
+                                        <span class="cat-products__price">{{ p.sale_price | currency }}</span>
+                                      </li>
+                                    }
+                                  </ul>
+                                }
+                              }
+                            }
+                          }
+                        </td>
+                      </tr>
+                    }
                   }
                 </tbody>
               </table>

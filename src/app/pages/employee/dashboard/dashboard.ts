@@ -18,6 +18,7 @@ import { Empty } from '../../../shared/components/empty/empty';
 import type { PaymentStatus, RecentSale } from '../../../core/models/sale';
 import type { InventoryItem, StockStatus } from '../../../core/models/inventory';
 
+import { ResponsiveTable } from '../../../shared/directives/responsive-table';
 type LoadState = 'loading' | 'ready' | 'error';
 
 /**
@@ -27,7 +28,7 @@ type LoadState = 'loading' | 'ready' | 'error';
  */
 @Component({
   selector: 'app-employee-dashboard',
-  imports: [DatePipe, CurrencyPipe, Loading, Empty],
+  imports: [ResponsiveTable, DatePipe, CurrencyPipe, Loading, Empty],
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.css',
   changeDetection: ChangeDetectionStrategy.OnPush

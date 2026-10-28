@@ -39,6 +39,7 @@ import type { Category } from '../../../core/models/category';
 import { Categories as CategoriesApi } from '../../../core/services/categories';
 import { isCurrentJornada } from '../../../core/utils/jornada';
 
+import { ResponsiveTable } from '../../../shared/directives/responsive-table';
 type ViewState = 'loading' | 'ready' | 'error';
 type Notice = { text: string; kind: 'ok' | 'err' };
 type Tab = 'register' | 'list';
@@ -218,7 +219,7 @@ interface CatalogGroup {
  */
 @Component({
   selector: 'app-sales',
-  imports: [DatePipe, NgTemplateOutlet, CurrencyPipe, Modal, Loading, Empty, Icon],
+  imports: [ResponsiveTable, DatePipe, NgTemplateOutlet, CurrencyPipe, Modal, Loading, Empty, Icon],
   templateUrl: './sales.html',
   styleUrl: './sales.css',
   changeDetection: ChangeDetectionStrategy.OnPush

@@ -29,6 +29,7 @@ import {
   type StockStatus
 } from '../../../core/models/inventory';
 
+import { ResponsiveTable } from '../../../shared/directives/responsive-table';
 type ViewState = 'loading' | 'ready' | 'error';
 type Notice = { text: string; kind: 'ok' | 'err' };
 type StatusFilter = 'all' | StockStatus;
@@ -48,7 +49,7 @@ type Tab = 'stock' | 'movements';
  */
 @Component({
   selector: 'app-inventory',
-  imports: [DatePipe, ReactiveFormsModule, Modal, Loading, Empty, Icon],
+  imports: [ResponsiveTable, DatePipe, ReactiveFormsModule, Modal, Loading, Empty, Icon],
   templateUrl: './inventory.html',
   styleUrl: './inventory.css',
   changeDetection: ChangeDetectionStrategy.OnPush

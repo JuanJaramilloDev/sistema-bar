@@ -13,12 +13,9 @@ export const EMPLOYEE_ROUTES: Routes = [
     path: '',
     component: Layout,
     children: [
-      { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
-      {
-        path: 'dashboard',
-        loadComponent: () =>
-          import('./dashboard/dashboard').then((m) => m.Dashboard)
-      },
+      { path: '', pathMatch: 'full', redirectTo: 'sales' },
+      // El empleado no tiene dashboard (no debe ver ventas totales); enlaces viejos van a Ventas.
+      { path: 'dashboard', redirectTo: 'sales' },
       {
         path: 'sales',
         loadComponent: () => import('./sales/sales').then((m) => m.Sales)

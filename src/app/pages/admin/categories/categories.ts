@@ -12,13 +12,17 @@ import {
   Validators
 } from '@angular/forms';
 import { Categories as CategoriesApi } from '../../../core/services/categories';
+import { Products as ProductsApi } from '../../../core/services/products';
 import { humanizeDbError, type DbError } from '../../../core/services/supabase';
 import { Modal } from '../../../shared/components/modal/modal';
 import { Loading } from '../../../shared/components/loading/loading';
 import { Empty } from '../../../shared/components/empty/empty';
 import { Icon } from '../../../shared/components/icon/icon';
 import type { Category } from '../../../core/models/category';
+import type { ProductRow } from '../../../core/models/product';
+import { CurrencyPipe } from '../../../shared/pipes/currency-pipe';
 
+import { ResponsiveTable } from '../../../shared/directives/responsive-table';
 type ViewState = 'loading' | 'ready' | 'error';
 type Notice = { text: string; kind: 'ok' | 'err' };
 
@@ -28,7 +32,7 @@ type Notice = { text: string; kind: 'ok' | 'err' };
  */
 @Component({
   selector: 'app-admin-categories',
-  imports: [DatePipe, ReactiveFormsModule, Modal, Loading, Empty, Icon],
+  imports: [ResponsiveTable, CurrencyPipe, DatePipe, ReactiveFormsModule, Modal, Loading, Empty, Icon],
   templateUrl: './categories.html',
   styleUrl: './categories.css',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -36,6 +40,7 @@ type Notice = { text: string; kind: 'ok' | 'err' };
 export class Categories {
 
   private readonly api = inject(CategoriesApi);
+  private readonly productsApi = inject(ProductsApi);
   private readonly fb = inject(NonNullableFormBuilder);
 
   private noticeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -73,6 +78,12 @@ export class Categories {
   readonly deleting = signal(false);
   readonly deleteError = signal('');
 
+  // --- despliegue: productos de la categoría ---
+  readonly expandedId = signal<number | null>(null);
+  /** Productos agrupados por categoría; `null` hasta la primera carga. */
+  readonly productsByCategory = signal<Map<number, ProductRow[]> | null>(null);
+  readonly productsState = signal<ViewState>('ready');
+
   // --- fila ocupada (activar/desactivar) ---
   readonly busyId = signal<number | null>(null);
 
@@ -89,6 +100,41 @@ export class Categories {
       console.error('[categorías] cargar:', err);
       this.state.set('error');
     }
+  }
+
+  /** Muestra/oculta los productos de la categoría. Los carga una sola vez. */
+  async toggleExpand(category: Category): Promise<void> {
+    if (this.expandedId() === category.id) {
+      this.expandedId.set(null);
+      return;
+    }
+    this.expandedId.set(category.id);
+    if (this.productsByCategory() === null) {
+      await this.loadProducts();
+    }
+  }
+
+  async loadProducts(): Promise<void> {
+    this.productsState.set('loading');
+    try {
+      const grouped = new Map<number, ProductRow[]>();
+      for (const product of await this.productsApi.list()) {
+        if (product.category_id !== null) {
+          const list = grouped.get(product.category_id) ?? [];
+          list.push(product);
+          grouped.set(product.category_id, list);
+        }
+      }
+      this.productsByCategory.set(grouped);
+      this.productsState.set('ready');
+    } catch (err) {
+      console.error('[categorías] productos:', err);
+      this.productsState.set('error');
+    }
+  }
+
+  productsOf(categoryId: number): ProductRow[] {
+    return this.productsByCategory()?.get(categoryId) ?? [];
   }
 
   openCreate(): void {

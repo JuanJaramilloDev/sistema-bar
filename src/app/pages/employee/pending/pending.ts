@@ -22,6 +22,7 @@ import {
 } from '../../../core/models/payment';
 import type { PendingSaleRow } from '../../../core/models/sale';
 
+import { ResponsiveTable } from '../../../shared/directives/responsive-table';
 type ViewState = 'loading' | 'ready' | 'error';
 type Notice = { text: string; kind: 'ok' | 'err' };
 
@@ -34,7 +35,7 @@ type Notice = { text: string; kind: 'ok' | 'err' };
  */
 @Component({
   selector: 'app-pending',
-  imports: [DatePipe, CurrencyPipe, Modal, Loading, Empty],
+  imports: [ResponsiveTable, DatePipe, CurrencyPipe, Modal, Loading, Empty],
   templateUrl: './pending.html',
   styleUrl: './pending.css',
   changeDetection: ChangeDetectionStrategy.OnPush

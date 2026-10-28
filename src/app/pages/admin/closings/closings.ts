@@ -25,6 +25,7 @@ import type {
 } from '../../../core/models/closing';
 import type { FixedExpense } from '../../../core/models/fixed-expense';
 
+import { ResponsiveTable } from '../../../shared/directives/responsive-table';
 type ViewState = 'loading' | 'ready' | 'error';
 type Notice = { text: string; kind: 'ok' | 'err' };
 
@@ -72,7 +73,7 @@ const MONTHS = [
  */
 @Component({
   selector: 'app-closings',
-  imports: [DatePipe, CurrencyPipe, Loading, Empty, Modal, FixedExpenses],
+  imports: [ResponsiveTable, DatePipe, CurrencyPipe, Loading, Empty, Modal, FixedExpenses],
   templateUrl: './closings.html',
   styleUrl: './closings.css',
   changeDetection: ChangeDetectionStrategy.OnPush

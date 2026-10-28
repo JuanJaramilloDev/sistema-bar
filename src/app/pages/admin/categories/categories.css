@@ -5,3 +5,63 @@
 .notice-alert {
   cursor: pointer;
 }
+
+/* Despliegue: productos de la categoría */
+.chevron app-icon {
+  transition: transform 0.15s ease;
+}
+.chevron--open app-icon {
+  transform: rotate(180deg);
+}
+.table tbody tr.is-open {
+  background: var(--surface-2);
+}
+.table tbody tr.detail-row:hover {
+  background: var(--surface-2);
+  box-shadow: none;
+}
+.detail-row > td {
+  padding: 4px 14px 14px;
+  background: var(--surface-2);
+}
+.cat-products__count {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+.cat-products {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 6px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cat-products__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--border);
+  font-size: 13px;
+}
+.cat-products__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cat-products__price {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+.cat-products__empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-dim);
+}
