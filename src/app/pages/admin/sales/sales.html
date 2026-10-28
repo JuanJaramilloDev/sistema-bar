@@ -205,27 +205,26 @@
 
                 <div class="cobro">
                   <div class="field">
-                    <label for="s-discount">Descuento</label>
-                    <input
-                      id="s-discount"
-                      type="number"
-                      inputmode="numeric"
-                      min="0"
-                      step="500"
-                      class="input"
-                      [class.is-invalid]="discountInvalid()"
-                      [value]="discount()"
-                      (input)="onDiscount($any($event.target).value)"
-                    />
-                    @if (discountInvalid()) {
-                      <span class="field-error">No puede superar el subtotal.</span>
-                    }
+                    <span class="field-label" id="s-discount">Descuento</span>
+                    <div class="tabs discount-tabs" role="group" aria-labelledby="s-discount">
+                      @for (pct of discountOptions; track pct) {
+                        <button
+                          type="button"
+                          class="tabs__btn"
+                          [class.is-active]="discountPct() === pct"
+                          [attr.aria-pressed]="discountPct() === pct"
+                          (click)="discountPct.set(pct)"
+                        >
+                          {{ pct === 0 ? 'Sin descuento' : pct + '%' }}
+                        </button>
+                      }
+                    </div>
                   </div>
 
                   <div class="totals">
                     <div class="totals__row"><span>Subtotal</span><span>{{ subtotal() | currency }}</span></div>
                     @if (discount() > 0) {
-                      <div class="totals__row totals__row--muted"><span>Descuento</span><span>−{{ discount() | currency }}</span></div>
+                      <div class="totals__row totals__row--muted"><span>Descuento ({{ discountPct() }}%)</span><span>−{{ discount() | currency }}</span></div>
                     }
                     <div class="totals__row totals__row--big"><span>Total</span><span>{{ total() | currency }}</span></div>
                   </div>
@@ -598,24 +597,43 @@
         }
 
         <div class="field">
-          <label for="e-discount">Descuento</label>
-          <input
-            id="e-discount"
-            type="number"
-            inputmode="numeric"
-            min="0"
-            step="500"
-            class="input"
-            [class.is-invalid]="editDiscountInvalid()"
-            [value]="editDiscount()"
-            (input)="editOnDiscount($any($event.target).value)"
-          />
+          <span class="field-label" id="e-discount">Descuento</span>
+          <div class="tabs discount-tabs" role="group" aria-labelledby="e-discount">
+            @for (pct of discountOptions; track pct) {
+              <button
+                type="button"
+                class="tabs__btn"
+                [class.is-active]="editDiscountPct() === pct"
+                [attr.aria-pressed]="editDiscountPct() === pct"
+                (click)="editDiscountPct.set(pct)"
+              >
+                {{ pct === 0 ? 'Sin descuento' : pct + '%' }}
+              </button>
+            }
+            @if (editLegacyDiscount() > 0) {
+              <button
+                type="button"
+                class="tabs__btn"
+                [class.is-active]="editDiscountPct() === null"
+                [attr.aria-pressed]="editDiscountPct() === null"
+                title="Descuento que ya tenía la venta"
+                (click)="editDiscountPct.set(null)"
+              >
+                Anterior (−{{ editLegacyDiscount() | currency }})
+              </button>
+            }
+          </div>
+          @if (editDiscountInvalid()) {
+            <span class="field-error">El descuento anterior supera el subtotal: elige otra opción.</span>
+          }
         </div>
 
         <div class="totals">
           <div class="totals__row"><span>Subtotal</span><span>{{ editSubtotal() | currency }}</span></div>
           @if (editDiscount() > 0) {
-            <div class="totals__row totals__row--muted"><span>Descuento</span><span>−{{ editDiscount() | currency }}</span></div>
+            <div class="totals__row totals__row--muted">
+              <span>Descuento{{ editDiscountPct() !== null ? ' (' + editDiscountPct() + '%)' : '' }}</span><span>−{{ editDiscount() | currency }}</span>
+            </div>
           }
           <div class="totals__row totals__row--big"><span>Total</span><span>{{ editTotal() | currency }}</span></div>
         </div>

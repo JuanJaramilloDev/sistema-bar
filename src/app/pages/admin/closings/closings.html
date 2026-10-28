@@ -45,8 +45,9 @@
         @if (statement(); as st) {
           <div class="close-grid">
             <div class="ledger">
-              <div class="ledger__row ledger__row--sum"><span>Total ({{ st.count }} ventas)</span><span>{{ st.total | currency }}</span></div>
-              <div class="ledger__row ledger__row--minus"><span>− Descuentos</span><span>{{ st.discounts | currency }}</span></div>
+              <div class="ledger__row"><span>Vendido sin descuento ({{ st.count }} ventas)</span><span>{{ st.gross | currency }}</span></div>
+              <div class="ledger__row ledger__row--minus"><span>− Descuentos (20% / 30%)</span><span>{{ st.discounts | currency }}</span></div>
+              <div class="ledger__row ledger__row--sum"><span>= Total vendido</span><span>{{ st.total | currency }}</span></div>
               <div class="ledger__row ledger__row--minus"><span>− Para reponer (costo de lo vendido)</span><span>{{ st.cost | currency }}</span></div>
               <div class="ledger__row ledger__row--minus"><span>− Comisiones promotoras {{ kind() === 'week' ? '(parte de la semana)' : '(' + st.commissionPct + '%)' }}</span><span>{{ st.commissions | currency }}</span></div>
               <div class="ledger__row ledger__row--minus">
@@ -210,8 +211,9 @@
       </p>
 
       <div class="ledger">
-        <div class="ledger__row ledger__row--sum"><span>Total ({{ c.sales_count }} ventas)</span><span>{{ c.total | currency }}</span></div>
+        <div class="ledger__row"><span>Vendido sin descuento ({{ c.sales_count }} ventas)</span><span>{{ c.gross | currency }}</span></div>
         <div class="ledger__row ledger__row--minus"><span>− Descuentos</span><span>{{ c.discounts | currency }}</span></div>
+        <div class="ledger__row ledger__row--sum"><span>= Total vendido</span><span>{{ c.total | currency }}</span></div>
         <div class="ledger__row ledger__row--minus"><span>− Para reponer</span><span>{{ c.cost | currency }}</span></div>
         <div class="ledger__row ledger__row--minus"><span>− Comisiones {{ c.kind === 'week' ? '(parte de la semana)' : '(' + c.commission_pct + '%)' }}</span><span>{{ c.commissions | currency }}</span></div>
         <div class="ledger__row ledger__row--minus"><span>− Gastos fijos</span><span>{{ c.fixed_expenses | currency }}</span></div>

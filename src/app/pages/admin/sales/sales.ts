@@ -261,7 +261,9 @@ export class Sales {
   readonly expandedCategoryId = signal<number | 'none' | null>(null);
 
   readonly cart = signal<CartLine[]>([]);
-  readonly discount = signal(0);
+  /** Descuento elegido: solo 0, 20 % o 30 % del subtotal. */
+  readonly discountPct = signal<DiscountPct>(0);
+  readonly discountOptions = DISCOUNT_OPTIONS;
   readonly customerId = signal<number | null>(null);
   readonly promoterId = signal<number | null>(null);
   /** Cobro de la venta nueva (uno o varios métodos). */
@@ -312,18 +314,18 @@ export class Sales {
     this.cart().reduce((acc, l) => acc + l.unitPrice * l.quantity, 0)
   );
 
-  readonly total = computed(() =>
-    Math.max(0, this.subtotal() - clampMoney(this.discount()))
-  );
+  /** Monto del descuento (se recalcula si cambia el carrito). */
+  readonly discount = computed(() => discountFor(this.subtotal(), this.discountPct()));
+
+  readonly total = computed(() => Math.max(0, this.subtotal() - this.discount()));
 
   readonly customerRequired = computed(() => this.pay.pending() > 0);
-  readonly discountInvalid = computed(() => clampMoney(this.discount()) > this.subtotal());
 
   readonly canSubmit = computed(() => {
     if (this.cart().length === 0 || this.saving()) {
       return false;
     }
-    if (this.discountInvalid() || this.pay.invalid()) {
+    if (this.pay.invalid()) {
       return false;
     }
     if (this.cart().some((l) => l.quantity > l.available)) {
@@ -425,7 +427,12 @@ export class Sales {
   // --- edición de una venta (solo admin) ---
   readonly editSale = signal<SaleListRow | null>(null);
   readonly editItems = signal<CartLine[]>([]);
-  readonly editDiscount = signal(0);
+  /**
+   * Descuento de la venta en edición: 0/20/30 %, o `null` = conservar el monto
+   * que ya tenía (ventas viejas con un descuento libre).
+   */
+  readonly editDiscountPct = signal<DiscountPct | null>(0);
+  readonly editLegacyDiscount = signal(0);
   readonly editCustomerId = signal<number | null>(null);
   readonly editPromoterId = signal<number | null>(null);
   /** Activas + la que ya tenía la venta (aunque esté inactiva). */
@@ -441,8 +448,12 @@ export class Sales {
   readonly editSubtotal = computed(() =>
     this.editItems().reduce((a, l) => a + l.unitPrice * l.quantity, 0)
   );
+  readonly editDiscount = computed(() => {
+    const pct = this.editDiscountPct();
+    return pct === null ? this.editLegacyDiscount() : discountFor(this.editSubtotal(), pct);
+  });
   readonly editTotal = computed(() =>
-    Math.max(0, this.editSubtotal() - clampMoney(this.editDiscount()))
+    Math.max(0, this.editSubtotal() - this.editDiscount())
   );
   readonly editPending = computed(() => this.editPay.pending());
   readonly editDiscountInvalid = computed(
@@ -596,7 +607,7 @@ export class Sales {
 
   clearCart(): void {
     this.cart.set([]);
-    this.discount.set(0);
+    this.discountPct.set(0);
     this.customerId.set(null);
     this.promoterId.set(null);
     this.pay.reset();
@@ -604,10 +615,6 @@ export class Sales {
   }
 
   // ------------------------------------------------------------- inputs ---
-
-  onDiscount(value: string): void {
-    this.discount.set(clampMoney(Number(value)));
-  }
 
   onCustomer(value: string): void {
     this.customerId.set(value ? Number(value) : null);
@@ -624,8 +631,6 @@ export class Sales {
     if (!this.canSubmit()) {
       if (this.customerRequired() && this.customerId() == null) {
         this.formError.set('Selecciona el cliente: la venta queda con saldo pendiente.');
-      } else if (this.discountInvalid()) {
-        this.formError.set('El descuento no puede superar el subtotal.');
       }
       return;
     }
@@ -634,7 +639,7 @@ export class Sales {
     try {
       const result = await this.api.create({
         customerId: this.customerId(),
-        discount: clampMoney(this.discount()),
+        discount: this.discount(),
         items: this.cart().map((l) => ({
           product_id: l.productId,
           quantity: l.quantity,
@@ -843,7 +848,9 @@ export class Sales {
           quantity: it.quantity
         }))
       );
-      this.editDiscount.set(detail.discount);
+      const pct = pctOf(detail.discount, detail.subtotal);
+      this.editDiscountPct.set(pct);
+      this.editLegacyDiscount.set(pct === null ? detail.discount : 0);
       this.editCustomerId.set(detail.customerId);
       this.editPromoterId.set(detail.promoterId);
 
@@ -881,9 +888,6 @@ export class Sales {
     );
   }
 
-  editOnDiscount(value: string): void {
-    this.editDiscount.set(clampMoney(Number(value)));
-  }
   editOnCustomer(value: string): void {
     this.editCustomerId.set(value ? Number(value) : null);
   }
@@ -910,7 +914,7 @@ export class Sales {
       const result = await this.api.updateSale({
         saleId: sale.id,
         customerId: this.editCustomerId(),
-        discount: clampMoney(this.editDiscount()),
+        discount: this.editDiscount(),
         items: this.editItems()
           .filter((l) => l.quantity > 0)
           .map((l) => ({
@@ -969,6 +973,19 @@ export class Sales {
 }
 
 /** Entero ≥ 0 a partir de cualquier entrada. */
+/** Únicos descuentos permitidos en una venta (porcentaje del subtotal). */
+type DiscountPct = 0 | 20 | 30;
+const DISCOUNT_OPTIONS: readonly DiscountPct[] = [0, 20, 30];
+
+function discountFor(subtotal: number, pct: DiscountPct): number {
+  return Math.round((subtotal * pct) / 100);
+}
+
+/** Qué opción corresponde a un descuento ya guardado (null = monto libre viejo). */
+function pctOf(discount: number, subtotal: number): DiscountPct | null {
+  return DISCOUNT_OPTIONS.find((pct) => Math.abs(discountFor(subtotal, pct) - discount) <= 1) ?? null;
+}
+
 function clampMoney(value: unknown): number {
   const n = Number(value);
   return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
